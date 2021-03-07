@@ -16,7 +16,9 @@ public class AgentView : Sprite
 	
 	public override void _Process(float delta)
 	{
-		if (IsMoving)
+		if (Agent.HP < 1)
+			QueueFree();
+		else if (IsMoving)
 		{
 			var speed = 24 * 8 * delta;
 			var target = new Vector2(Agent.X * 24, Agent.Y * 24);
@@ -25,6 +27,7 @@ public class AgentView : Sprite
 			{
 				Position = target;
 				IsMoving = false;
+				Agent.IsBusy = false;
 			}
 			else
 			{
