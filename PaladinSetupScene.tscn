@@ -16,8 +16,8 @@ text = "Choose your deity"
 align = 1
 valign = 1
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
-margin_left = 50.0
+[node name="List" type="RichTextLabel" parent="."]
+margin_left = 10.0
 margin_top = 100.0
-margin_right = 90.0
-margin_bottom = 140.0
+margin_right = -10.0
+margin_bottom = -10.0

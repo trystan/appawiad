@@ -16,6 +16,7 @@ _global_script_class_icons={
 [application]
 
 config/name="appawiad"
+run/main_scene="res://TitleScene.tscn"
 config/icon="res://icon.png"
 
 [importer_defaults]

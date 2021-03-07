@@ -16,6 +16,8 @@ public class PlayScene : Node2D
 		_agentView = (PackedScene)ResourceLoader.Load("res://AgentView.tscn");
 		_tileMap = (TileMap)GetNode("TileMap");
 		
+		var catalog = new Catalog();
+		
 		_level = new Level(20, 20);
 		
 		for (var x = 0; x < _level.Tiles.GetLength(0); x++)
@@ -28,16 +30,21 @@ public class PlayScene : Node2D
 		}
 		
 		var playerView = (AgentView)_agentView.Instance();
-		playerView.Agent = _player = new Agent(3, 4, 0, 9);
+		playerView.Agent = _player = new Agent(3, 4, 0, 9) {
+			Name = "player",
+			Team = "player",
+			Tags = new List<AgentTag> { AgentTag.Living }
+		};
 		_level.Agents.Add(_player);
 		AddChild(playerView);
 		
-		for (var i = 0; i < 10; i++)
+		for (var i = 0; i < 32; i++)
 		{
 			var view = (AgentView)_agentView.Instance();
 			var x = Globals.Random.Next(32);
 			var y = Globals.Random.Next(32);
-			view.Agent = new Agent(x, y, 26, 5);
+			
+			view.Agent = catalog.NewEnemy(x, y);
 			_level.Agents.Add(view.Agent);
 			AddChild(view);
 		}
@@ -51,17 +58,20 @@ public class PlayScene : Node2D
 	
 	public IEnumerable<ICommand> GetCommandsForAi(Agent agent)
 	{
-		if (!_level.GetTile(agent.X - 1, agent.Y).BlocksMovement)
-			yield return new MoveBy(-1, 0);
-		
-		if (!_level.GetTile(agent.X + 1, agent.Y).BlocksMovement)
-			yield return new MoveBy(1, 0);
-		
-		if (!_level.GetTile(agent.X, agent.Y - 1).BlocksMovement)
-			yield return new MoveBy(0, -1);
-		
-		if (!_level.GetTile(agent.X, agent.Y + 1).BlocksMovement)
-			yield return new MoveBy(0, 1);
+		if (!agent.Tags.Contains(AgentTag.Stationary))
+		{
+			if (!_level.GetTile(agent.X - 1, agent.Y).BlocksMovement)
+				yield return new MoveBy(-1, 0);
+			
+			if (!_level.GetTile(agent.X + 1, agent.Y).BlocksMovement)
+				yield return new MoveBy(1, 0);
+			
+			if (!_level.GetTile(agent.X, agent.Y - 1).BlocksMovement)
+				yield return new MoveBy(0, -1);
+			
+			if (!_level.GetTile(agent.X, agent.Y + 1).BlocksMovement)
+				yield return new MoveBy(0, 1);
+		}
 		
 		yield return new MoveBy(0, 0);
 	}
@@ -135,6 +145,52 @@ public class PlayScene : Node2D
 	}
 }
 
+public class Catalog
+{
+	public Agent NewEnemy(int x, int y)
+	{
+		switch (Globals.Random.Next(5))
+		{
+			case 0: return NewGobbo(x, y);
+			case 1: return NewSkeleton(x, y);
+			case 2: return NewSpider(x, y);
+			case 3: return NewPig(x, y);
+			case 4: return NewTree(x, y);
+		}
+		return null;
+	}
+	
+	public Agent NewGobbo(int x, int y) => new Agent(x, y, 31, 5) {
+		Name = "gobbo",
+		Team = "gobbos",
+		Tags = new List<AgentTag> { AgentTag.Living }
+	};
+	
+	public Agent NewSkeleton(int x, int y) => new Agent(x, y, 37, 5) {
+		Name = "skeleton",
+		Team = "skeleton",
+		Tags = new List<AgentTag> { AgentTag.Undead }
+	};
+	
+	public Agent NewPig(int x, int y) => new Agent(x, y, 2, 15) {
+		Name = "pig",
+		Team = "beasts",
+		Tags = new List<AgentTag> { AgentTag.Living }
+	};
+	
+	public Agent NewSpider(int x, int y) => new Agent(x, y, 2, 14) {
+		Name = "spider",
+		Team = "critters",
+		Tags = new List<AgentTag> { AgentTag.Living }
+	};
+	
+	public Agent NewTree(int x, int y) => new Agent(x, y, 0, 26) {
+		Name = "tree",
+		Team = "plant",
+		Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Stationary }
+	};
+}
+
 public interface ICommand
 {
 	void Do(Level level, Agent agent);
@@ -166,6 +222,7 @@ public class MoveBy : ICommand
 		{
 			other.Die();
 			level.Agents.Remove(other);
+			Globals.OnEvent(new DidAttack(agent, other));
 		}
 		else
 		{
@@ -187,13 +244,65 @@ public static class Globals
 		MakeDeities();
 	}
 	
+	public static void OnEvent(IEvent e)
+	{
+		foreach (var deity in Deities)
+			deity.OnEvent(e);
+	}
+	
+	private static string MakeDeityName()
+	{
+		var vowels = "aeiou";
+		var consonants = "bcdfghjklmnpqrstvwxz";
+		if (Random.NextDouble() < 0.66)
+			vowels += "y";
+		else
+			consonants += "y";
+		
+		for (var i = 0; i < 6; i++)
+		{
+			var index = Random.Next(consonants.Length);
+			consonants = consonants.Substring(0, index) + consonants.Substring(index+1);
+		}
+		for (var i = 0; i < 6; i++)
+		{
+			var index = Random.Next(consonants.Length);
+			consonants += consonants[index];
+		}
+		
+		var name = "";
+		if (Random.NextDouble() < 0.5)
+			name += vowels[Random.Next(vowels.Length)];
+		while (name.Length < 4)
+		{
+			name += consonants[Random.Next(consonants.Length)];
+			name += vowels[Random.Next(vowels.Length)];
+		}
+		if (Random.NextDouble() < 0.5)
+			name += consonants[Random.Next(consonants.Length)];
+		
+		if (Random.NextDouble() < 0.25)
+		{
+			var index = Random.Next(name.Length);
+			name = name.Substring(0, index) + name.Substring(index+1);
+		}
+		
+		if (Random.NextDouble() < 0.25)
+		{
+			var index = Random.Next(name.Length);
+			name = name.Substring(0, index) + name.Substring(index, 1) + name.Substring(index);
+		}
+		
+		name = name.Replace("q", "qu");
+		name = name.Substring(0, 1).ToUpper() + name.Substring(1);
+		return name;
+	}
+	
 	private static void MakeDeities()
 	{
 		var types = System.Reflection.Assembly
 			.GetExecutingAssembly()
 			.GetTypes();
-		
-		var names = "Thor Zeus Zom Posiden Loki Baal Asmodeus".Split(' ').ToList();
 		
 		var archetypes = types
 			.Where(t => typeof(DeityArchetype).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
@@ -205,16 +314,15 @@ public static class Globals
 			.Select(t => (DeityDomain)Activator.CreateInstance(t))
 			.ToList();
 		
-		while (names.Any() 
-			&& archetypes.Any() 
+		while (archetypes.Any() 
 			&& domains.Any() 
 			&& Deities.Count < 6)
 		{
 			var deity = new Deity {
-				Name = names[Random.Next(names.Count)],
+				Name = MakeDeityName(),
+				Pronoun = Globals.Random.NextDouble() < 0.5 ? "he" : "she",
 				Archetype = archetypes[Random.Next(archetypes.Count)]
 			};
-			names.Remove(deity.Name);
 			archetypes.Remove(deity.Archetype);
 			
 			while (domains.Any() && deity.Domains.Count < deity.Archetype.NumberOfDomains)
@@ -238,30 +346,32 @@ public static class Globals
 public class Deity
 {
 	public string Name { get; set; }
+	public string Pronoun { get; set; }
 	public DeityArchetype Archetype { get; set; }
 	public List<DeityDomain> Domains { get; set; } = new List<DeityDomain>();
 	public List<string> Likes { get; set; } = new List<string>();
 	public List<string> Dislikes { get; set; } = new List<string>();
+	public int PlayerFavor { get; set; } = 0;
+	
+	public bool AcceptsPrayers { get; set; } = true;
+	public bool AcceptsDonations { get; set; } = true;
+	public bool AcceptsSacrafices { get; set; } = true;
 	
 	public string GetFullTitle()
 	{
-		switch (Domains.Count)
-		{
-			case 0:
-				return Name + " the " + Archetype.Name + " god";
-			case 1:
-				return Name + " the " + Archetype.Name + " god of " + Domains[0].Name;
-			case 2:
-				return Name + " the " + Archetype.Name + " god of " + Domains[0].Name + " and " + Domains[1].Name;
-			default:
-				var last = Domains[Domains.Count - 1];
-				var rest = Domains.Take(Domains.Count - 1).ToList();
-				return Name + " the " + Archetype.Name + " god of " + string.Join(", ", rest.Select(d => d.Name)) + ", and " + last.Name;
-		}
+		var title = Pronoun == "he" ? "god" : "godess";
+		if (Domains.Count == 0)
+			return Name + " the " + Archetype.Name + " " + title;
+		else
+			return Name + " the " + Archetype.Name + $" {title} of " + Util.AndList(Domains.Select(d => d.Name));
 	}
 	
 	public void Finalize(IEnumerable<Deity> deities)
 	{
+		AcceptsPrayers = Globals.Random.NextDouble() < 0.9f;
+		AcceptsDonations = Globals.Random.NextDouble() < 0.9f;
+		AcceptsSacrafices = Globals.Random.NextDouble() < 0.1f;
+		
 		Archetype.Finalize(this, deities);
 		foreach (var domain in Domains)
 			domain.Finalize(this, deities);
@@ -275,6 +385,23 @@ public class Deity
 			Likes.Remove(thing);
 			Dislikes.Remove(thing);
 		}
+	}
+	
+	public void OnEvent(IEvent e)
+	{
+		Archetype.OnEvent(this, e);
+		foreach (var domain in Domains)
+			domain.OnEvent(this, e);
+	}
+	
+	public void Like(Agent agent)
+	{
+		GD.Print(Name + " likes " + agent.Name);
+	}
+	
+	public void Dislike(Agent agent)
+	{
+		GD.Print(Name + " dislikes " + agent.Name);
 	}
 }
 
@@ -294,6 +421,10 @@ public abstract class DeityArchetype
 	public virtual void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
 	}
+	
+	public virtual void OnEvent(Deity self, IEvent e)
+	{
+	}
 }
 
 public abstract class DeityDomain
@@ -307,6 +438,10 @@ public abstract class DeityDomain
 	}
 	
 	public virtual void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
+	}
+	
+	public virtual void OnEvent(Deity self, IEvent e)
 	{
 	}
 }
@@ -351,8 +486,17 @@ public class Tile
 	}
 }
 
+public enum AgentTag
+{
+	Living, Undead, Stationary
+}
+
 public class Agent
 {
+	public string Name { get; set; }
+	
+	public List<AgentTag> Tags { get; set; } = new List<AgentTag>();
+	public string Team { get; set; }
 	public bool IsBusy { get; set; }
 	
 	public int X { get; set; }
@@ -374,5 +518,20 @@ public class Agent
 	public void Die()
 	{
 		HP = -1;
+	}
+}
+
+public interface IEvent
+{
+}
+
+public class DidAttack : IEvent
+{
+	public Agent Attacker { get; set; }
+	public Agent Attacked { get; set; }
+	public DidAttack(Agent attacker, Agent attacked)
+	{
+		Attacker = attacker;
+		Attacked = attacked;
 	}
 }

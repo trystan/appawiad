@@ -19,6 +19,33 @@ public class Chaotic : DeityArchetype
 			self.Dislikes.Add("order");
 		Description = $"{self.Name} is chaotic and unpredictable. Favor can be gained or lost without warning.";
 	}
+	
+	public override void OnEvent(Deity self, IEvent e)
+	{
+		if (Globals.Random.NextDouble() < 0.99)
+			return;
+		
+		switch (e)
+		{
+			case DidAttack attack:
+				switch (Globals.Random.Next(4))
+				{
+					case 0:
+						self.Like(attack.Attacker);
+						break;
+					case 1:
+						self.Like(attack.Attacked);
+						break;
+					case 2:
+						self.Dislike(attack.Attacker);
+						break;
+					case 3:
+						self.Dislike(attack.Attacked);
+						break;
+				}
+				break;
+		}
+	}
 }
 
 public class Obsessed : DeityArchetype
@@ -34,7 +61,7 @@ public class Obsessed : DeityArchetype
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
 			self.Likes.Add(self.Domains[0].Name);
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
-			self.Dislikes.Add($"Everything other than {self.Domains[0].Name}");
+			self.Dislikes.Add($"everything other than {self.Domains[0].Name}");
 	}
 }
 
@@ -51,8 +78,6 @@ public class Trickster : DeityArchetype
 	{
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
 			self.Likes.Add("illusions");
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("jokes");
 		
 		var rival = deities.ToArray()[Globals.Random.Next(deities.Count())];
 		if (rival != self)
@@ -72,6 +97,9 @@ public class Sleeping : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.AcceptsPrayers = false;
+		self.AcceptsDonations = false;
+		self.AcceptsSacrafices = false;
 		Description = $"{self.Name} slumbers forever and does not intervine in the mundane world.";
 	}
 }
@@ -80,13 +108,16 @@ public class Vengeful : DeityArchetype
 {
 	public Vengeful() : base("vengeful")
 	{
-		ChanceOfLikes = 0.2f;
+		ChanceOfLikes = 0.1f;
 		ChanceOfDislikes = 10.0f;
 	}
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		Description = "A vengeful deity is easy to displease but often intervene to help those who worship them.";
+		self.AcceptsPrayers = true;
+		self.AcceptsDonations = true;
+		self.AcceptsSacrafices = true;
+		Description = "A vengeful deity is easy to displease but often intervenes to help those who worship them.";
 	}
 }
 
@@ -96,16 +127,34 @@ public class Vengeful : DeityArchetype
 
 public class OfDeath : DeityDomain
 {
+	bool likesKillingLiving;
+	bool dislikesKillingUndead;
+	
 	public OfDeath() : base("death")
 	{
 	}
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("kill living beings");
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
-			self.Dislikes.Add("kill undead beings");
+		likesKillingLiving = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
+		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
+		if (likesKillingLiving)
+			self.Likes.Add("killing living beings");
+		if (dislikesKillingUndead)
+			self.Dislikes.Add("killing undead beings");
+	}
+	
+	public override void OnEvent(Deity self, IEvent e)
+	{
+		switch (e)
+		{
+			case DidAttack attack when attack.Attacked.HP < 0:
+				if (likesKillingLiving && attack.Attacked.Tags.Contains(AgentTag.Living))
+					self.Like(attack.Attacker);
+				if (dislikesKillingUndead && attack.Attacked.Tags.Contains(AgentTag.Undead))
+					self.Dislike(attack.Attacker);
+				break;
+		}
 	}
 }
 
@@ -117,6 +166,7 @@ public class OfHealth : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.AcceptsSacrafices = false;
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
 			self.Likes.Add("healing living beings");
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
@@ -139,18 +189,58 @@ public class OfWriting : DeityDomain
 	}
 }
 
+public class OfCommerce : DeityDomain
+{
+	bool likesMoney;
+	
+	public OfCommerce() : base("commerce")
+	{
+	}
+	
+	public override void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
+		self.AcceptsDonations = true;
+		
+		likesMoney = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
+		if (likesMoney)
+			self.Likes.Add("money");
+	}
+	
+	public override void OnEvent(Deity self, IEvent e)
+	{
+	}
+}
+
 public class OfWar : DeityDomain
 {
+	bool likesKillingEnemies;
+	bool dislikesKillingAllies;
+	
 	public OfWar() : base("war")
 	{
 	}
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
+		likesKillingEnemies = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
+		if (likesKillingEnemies)
 			self.Likes.Add("killing enemies");
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
+		dislikesKillingAllies = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
+		if (dislikesKillingAllies)
 			self.Dislikes.Add("killing allies");
+	}
+	
+	public override void OnEvent(Deity self, IEvent e)
+	{
+		switch (e)
+		{
+			case DidAttack attack when attack.Attacked.HP < 0:
+				if (likesKillingEnemies && attack.Attacked.Team != attack.Attacker.Team)
+					self.Like(attack.Attacker);
+				if (dislikesKillingAllies && attack.Attacked.Team == attack.Attacker.Team)
+					self.Dislike(attack.Attacker);
+				break;
+		}
 	}
 }
 
