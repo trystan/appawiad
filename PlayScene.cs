@@ -179,6 +179,136 @@ public class MoveBy : ICommand
 public static class Globals
 {
 	public static Random Random { get; } = new Random();
+	
+	public static List<Deity> Deities { get; set; } = new List<Deity>();
+	
+	static Globals()
+	{
+		MakeDeities();
+	}
+	
+	private static void MakeDeities()
+	{
+		var types = System.Reflection.Assembly
+			.GetExecutingAssembly()
+			.GetTypes();
+		
+		var names = "Thor Zeus Zom Posiden Loki Baal Asmodeus".Split(' ').ToList();
+		
+		var archetypes = types
+			.Where(t => typeof(DeityArchetype).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+			.Select(t => (DeityArchetype)Activator.CreateInstance(t))
+			.ToList();
+			
+		var domains = types
+			.Where(t => typeof(DeityDomain).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+			.Select(t => (DeityDomain)Activator.CreateInstance(t))
+			.ToList();
+		
+		while (names.Any() 
+			&& archetypes.Any() 
+			&& domains.Any() 
+			&& Deities.Count < 6)
+		{
+			var deity = new Deity {
+				Name = names[Random.Next(names.Count)],
+				Archetype = archetypes[Random.Next(archetypes.Count)]
+			};
+			names.Remove(deity.Name);
+			archetypes.Remove(deity.Archetype);
+			
+			while (domains.Any() && deity.Domains.Count < deity.Archetype.NumberOfDomains)
+			{
+				var domain = domains[Random.Next(domains.Count)];
+				domains.Remove(domain);
+				deity.Domains.Add(domain);
+			}
+			
+			Deities.Add(deity);
+		}
+		
+		foreach (var deity in Deities)
+		{
+			deity.Finalize(Deities);
+			GD.Print(deity.GetFullTitle());
+		}
+	}
+}
+
+public class Deity
+{
+	public string Name { get; set; }
+	public DeityArchetype Archetype { get; set; }
+	public List<DeityDomain> Domains { get; set; } = new List<DeityDomain>();
+	public List<string> Likes { get; set; } = new List<string>();
+	public List<string> Dislikes { get; set; } = new List<string>();
+	
+	public string GetFullTitle()
+	{
+		switch (Domains.Count)
+		{
+			case 0:
+				return Name + " the " + Archetype.Name + " god";
+			case 1:
+				return Name + " the " + Archetype.Name + " god of " + Domains[0].Name;
+			case 2:
+				return Name + " the " + Archetype.Name + " god of " + Domains[0].Name + " and " + Domains[1].Name;
+			default:
+				var last = Domains[Domains.Count - 1];
+				var rest = Domains.Take(Domains.Count - 1).ToList();
+				return Name + " the " + Archetype.Name + " god of " + string.Join(", ", rest.Select(d => d.Name)) + ", and " + last.Name;
+		}
+	}
+	
+	public void Finalize(IEnumerable<Deity> deities)
+	{
+		Archetype.Finalize(this, deities);
+		foreach (var domain in Domains)
+			domain.Finalize(this, deities);
+		
+		Likes = Likes.Distinct().ToList();
+		Dislikes = Dislikes.Distinct().ToList();
+		
+		var common = Likes.Where(Dislikes.Contains).ToArray();
+		foreach (var thing in common)
+		{
+			Likes.Remove(thing);
+			Dislikes.Remove(thing);
+		}
+	}
+}
+
+public abstract class DeityArchetype
+{
+	public string Name { get; set; }
+	public string Description { get; set; }
+	public int NumberOfDomains { get; set; } = 3;
+	public float ChanceOfLikes { get; set; } = 0.9f;
+	public float ChanceOfDislikes { get; set; } = 0.9f;
+	
+	public DeityArchetype(string name)
+	{
+		Name = name;
+	}
+	
+	public virtual void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
+	}
+}
+
+public abstract class DeityDomain
+{
+	public string Name { get; set; }
+	public string Description { get; set; }
+	
+	public DeityDomain(string name)
+	{
+		Name = name;
+	}
+	
+	public virtual void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
+	}
 }
 
 public class Level
