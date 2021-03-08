@@ -111,11 +111,11 @@ public class PlayScene : Node2D
 			$"[@] {_player.Name}",
 			$"HP {_player.HP}/6   AP {_player.AP}+{_player.APRegeneration}",
 			$"${_player.Money}",
-			"Armor: " + _player.Armor?.Name ?? "-none",
-			"Weapon: " + _player.Weapon?.Name ?? "-none",
+			"Armor: " + _player.Armor?.DisplayName ?? "-none",
+			"Weapon: " + _player.Weapon?.DisplayName ?? "-none",
 			"",
 			"[g] Here:",
-			_level.Items.FirstOrDefault(i => i.X == _player.X && i.Y == _player.Y)?.Name ?? "-none-",
+			_level.Items.FirstOrDefault(i => i.X == _player.X && i.Y == _player.Y)?.DisplayName ?? "-none-",
 			"",
 			"[table=2]",
 			"[cell][tab] Deity[/cell][cell]Favor[/cell]"
@@ -174,6 +174,13 @@ public class PlayScene : Node2D
 
 public class Catalog
 {
+	PackedScene _itemScene;
+	
+	public Catalog()
+	{
+		_itemScene = (PackedScene)ResourceLoader.Load("res://Item.tscn");
+	}
+	
 	public Agent NewEnemy(int x, int y)
 	{
 		var constructors = new Func<int,int,Agent>[] {
@@ -217,22 +224,46 @@ public class Catalog
 	public Item NewItem(int x, int y)
 	{
 		var constructors = new Func<int,int,Item>[] {
-			NewSword, NewClub
+			NewSword, NewAxe, NewClub, NewSpear
 		};
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
 	
-	public Item NewSword(int x, int y) => new Item(x, y, 26, 21) {
-		Name = "Sword",
-		Type = ItemType.Weapon,
-		Material = "metal",
-	};
+	public Item NewSword(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 26, 21);
+		item.DisplayName = "Sword";
+		item.Type = ItemType.Weapon;
+		item.MadeOf = "metal";
+		return item;
+	}
 	
-	public Item NewClub(int x, int y) => new Item(x, y, 38, 21) {
-		Name = "Club",
-		Type = ItemType.Weapon,
-		Material = "wood",
-	};
+	public Item NewAxe(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 41, 21);
+		item.DisplayName = "Axe";
+		item.Type = ItemType.Weapon;
+		item.MadeOf = "metal";
+		return item;
+	}
+	
+	public Item NewClub(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 37, 21);
+		item.DisplayName = "Club";
+		item.Type = ItemType.Weapon;
+		item.MadeOf = "wood";
+		return item;
+	}
+	
+	public Item NewSpear(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 38, 21);
+		item.DisplayName = "Spear";
+		item.Type = ItemType.Weapon;
+		item.MadeOf = "wood";
+		return item;
+	}
 }
 
 public interface ICommand
@@ -301,36 +332,38 @@ public class PickupItem : ICommand
 		if (item.Type == ItemType.Armor)
 		{
 			if (agent.Armor != null)
-			{
-				agent.Armor.IsPickedUp = false;
-				agent.Armor.X = agent.X;
-				agent.Armor.Y = agent.Y;
-				level.Add(agent.Armor);
-				agent.Messages.Add($"You drop your {agent.Armor.Name}");
-			}
-			agent.Armor = item;
-			level.Items.Remove(item);
-			item.IsPickedUp = true;
-			agent.Messages.Add($"You pick up the {agent.Armor.Name}");
+				Drop(level, agent, agent.Armor);
+			Pickup(level, agent, item);
 			Globals.OnEvent(new UsedItem(agent, agent.Armor));
 		}
 		
 		if (item.Type == ItemType.Weapon)
 		{
 			if (agent.Weapon != null)
-			{
-				agent.Weapon.IsPickedUp = false;
-				agent.Weapon.X = agent.X;
-				agent.Weapon.Y = agent.Y;
-				level.Add(agent.Weapon);
-				agent.Messages.Add($"You drop your {agent.Weapon.Name}");
-			}
-			agent.Weapon = item;
-			level.Items.Remove(item);
-			item.IsPickedUp = true;
-			agent.Messages.Add($"You pick up the {agent.Weapon.Name}");
+				Drop(level, agent, agent.Weapon);
+			Pickup(level, agent, item);
 			Globals.OnEvent(new UsedItem(agent, agent.Weapon));
 		}
+	}
+	
+	public void Pickup(Level level, Agent agent, Item item)
+	{
+		switch (item.Type)
+		{
+			case ItemType.Weapon: agent.Weapon = item; break;
+			case ItemType.Armor: agent.Armor = item; break;
+		}
+		level.Remove(item);
+		agent.Messages.Add($"You pick up the {item.DisplayName}");
+	}
+	
+	public void Drop(Level level, Agent agent, Item item)
+	{
+		item.X = agent.X;
+		item.Y = agent.Y;
+		level.Add(item);
+		item.Position = new Vector2(item.X * 24, item.Y * 24);
+		agent.Messages.Add($"You drop your {item.DisplayName}");
 	}
 }
 
@@ -628,29 +661,6 @@ public class Agent
 public enum ItemType
 {
 	Armor, Weapon, Other
-}
-
-public class Item
-{
-	public string Name { get; set; }
-	public bool IsPickedUp { get; set; }
-	
-	public int X { get; set; }
-	public int Y { get; set; }
-	
-	public int SpriteX { get; set; }
-	public int SpriteY { get; set; }
-	
-	public ItemType Type { get; set; }
-	public string Material { get; set; }
-	
-	public Item(int x, int y, int spriteX, int spriteY)
-	{
-		X = x;
-		Y = y;
-		SpriteX = spriteX;
-		SpriteY = spriteY;
-	}
 }
 
 public interface IEvent

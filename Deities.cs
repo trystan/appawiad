@@ -443,8 +443,8 @@ public class OfForests : DeityDomain
 		switch (e)
 		{
 			case UsedItem used:
-				if (likesUsingWood && used.Item.Material == "wood")
-					self.Like(used.Agent, "your " + used.Item.Name);
+				if (likesUsingWood && used.Item.MadeOf == "wood")
+					self.Like(used.Agent, "your " + used.Item.DisplayName);
 				break;
 				
 			case DidAttack attack when attack.Attacked.HP < 1:
@@ -479,10 +479,10 @@ public class OfMountains : DeityDomain
 		switch (e)
 		{
 			case UsedItem used:
-				if (likesUsingStone && used.Item.Material == "stone")
-					self.Like(used.Agent, "your " + used.Item.Name);
-				if (likesUsingMetal && used.Item.Material == "metal")
-					self.Like(used.Agent, "your " + used.Item.Name);
+				if (likesUsingStone && used.Item.MadeOf == "stone")
+					self.Like(used.Agent, "your " + used.Item.DisplayName);
+				if (likesUsingMetal && used.Item.MadeOf == "metal")
+					self.Like(used.Agent, "your " + used.Item.DisplayName);
 				break;
 		}
 	}

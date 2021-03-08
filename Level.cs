@@ -7,7 +7,6 @@ public class Level : Node2D
 {
 	TileMap _tileMap;
 	PackedScene _agentView;
-	PackedScene _itemView;
 	
 	public Tile[,] Tiles { get; private set; }
 	public List<Agent> Agents { get; set; } = new List<Agent>();
@@ -16,7 +15,6 @@ public class Level : Node2D
 	public override void _Ready()
 	{
 		_agentView = (PackedScene)ResourceLoader.Load("res://AgentView.tscn");
-		_itemView = (PackedScene)ResourceLoader.Load("res://ItemView.tscn");
 		_tileMap = (TileMap)GetNode("TileMap");
 	}
 	
@@ -67,10 +65,13 @@ public class Level : Node2D
 	public void Add(Item item)
 	{
 		Items.Add(item);
-		
-		var view = (ItemView)_itemView.Instance();
-		view.Item = item;
-		AddChild(view);
+		AddChild(item);
+	}
+	
+	public void Remove(Item item)
+	{
+		Items.Remove(item);
+		RemoveChild(item);
 	}
 	
 	public void Add(Agent agent)
