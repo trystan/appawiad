@@ -10,6 +10,7 @@ public class PlayScene : Node2D
 	Control _deityPopup;
 	
 	PackedScene _agentView;
+	PackedScene _itemView;
 	Level _level;
 	Agent _player;
 	ICommand _nextPlayerCommand;
@@ -17,6 +18,7 @@ public class PlayScene : Node2D
 	public override void _Ready()
 	{
 		_agentView = (PackedScene)ResourceLoader.Load("res://AgentView.tscn");
+		_itemView = (PackedScene)ResourceLoader.Load("res://ItemView.tscn");
 		_tileMap = (TileMap)GetNode("TileMap");
 		_sidebar = (RichTextLabel)GetNode("CanvasLayer/Sidebar");
 		_deityPopup = (Control)GetNode("CanvasLayer/DeityPopup");
@@ -32,6 +34,17 @@ public class PlayScene : Node2D
 				var tile = _level.Tiles[x,y];
 				_tileMap.SetCell(x, y, tile.RandomIndex());
 			}
+		}
+		
+		for (var i = 0; i < 8; i++)
+		{
+			var view = (ItemView)_itemView.Instance();
+			var x = Globals.Random.Next(32);
+			var y = Globals.Random.Next(32);
+			
+			view.Item = catalog.NewItem(x, y);
+			_level.Items.Add(view.Item);
+			AddChild(view);
 		}
 		
 		var playerView = (AgentView)_agentView.Instance();
@@ -97,6 +110,9 @@ public class PlayScene : Node2D
 						GD.Print($"{a.Name} {a.HP}/6 {a.AP}+{a.APRegeneration}");
 					break;
 					
+				case (int)KeyList.G:
+					_nextPlayerCommand = new PickupItem();
+					break;
 				case (int)KeyList.Left:
 					_nextPlayerCommand = new MoveBy(-1, 0);
 					break;
@@ -119,8 +135,11 @@ public class PlayScene : Node2D
 			$"[@] {_player.Name}",
 			$"HP {_player.HP}/6   AP {_player.AP}+{_player.APRegeneration}",
 			$"${_player.Money}",
-			$"Armor: -none-",
-			$"Weapon: -none-",
+			"Armor: " + _player.Armor?.Name ?? "-none",
+			"Weapon: " + _player.Weapon?.Name ?? "-none",
+			"",
+			"[g] Here:",
+			_level.Items.FirstOrDefault(i => i.X == _player.X && i.Y == _player.Y)?.Name ?? "-none-",
 			"",
 			"[table=2]",
 			"[cell][tab] Deity[/cell][cell]Favor[/cell]"
@@ -237,7 +256,7 @@ public class Catalog
 	public Item NewItem(int x, int y)
 	{
 		var constructors = new Func<int,int,Item>[] {
-			NewSword
+			NewSword, NewClub
 		};
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
@@ -246,6 +265,12 @@ public class Catalog
 		Name = "Sword",
 		Type = ItemType.Weapon,
 		Material = "metal",
+	};
+	
+	public Item NewClub(int x, int y) => new Item(x, y, 38, 21) {
+		Name = "Club",
+		Type = ItemType.Weapon,
+		Material = "wood",
 	};
 }
 
@@ -299,6 +324,47 @@ public class MoveBy : ICommand
 			agent.X = nextX;
 			agent.Y = nextY;
 			agent.IsBusy = true;
+		}
+	}
+}
+
+public class PickupItem : ICommand
+{
+	public void Do(Level level, Agent agent)
+	{
+		agent.AP -= 10;
+		var item = level.Items.FirstOrDefault(i => i.X == agent.X && i.Y == agent.Y);
+		if (item == null)
+			return;
+		
+		if (item.Type == ItemType.Armor)
+		{
+			if (agent.Armor != null)
+			{
+				agent.Armor.IsPickedUp = false;
+				level.Items.Add(agent.Armor);
+				agent.Messages.Add($"You drop your {agent.Armor.Name}");
+			}
+			agent.Armor = item;
+			level.Items.Remove(item);
+			item.IsPickedUp = true;
+			agent.Messages.Add($"You pick up the {agent.Armor.Name}");
+			Globals.OnEvent(new UsedItem(agent, agent.Armor));
+		}
+		
+		if (item.Type == ItemType.Weapon)
+		{
+			if (agent.Weapon != null)
+			{
+				agent.Weapon.IsPickedUp = false;
+				level.Items.Add(agent.Weapon);
+				agent.Messages.Add($"You drop your {agent.Weapon.Name}");
+			}
+			agent.Weapon = item;
+			level.Items.Remove(item);
+			item.IsPickedUp = true;
+			agent.Messages.Add($"You pick up the {agent.Weapon.Name}");
+			Globals.OnEvent(new UsedItem(agent, agent.Weapon));
 		}
 	}
 }
@@ -423,6 +489,8 @@ public class Deity
 	public List<string> Dislikes { get; set; } = new List<string>();
 	public int PlayerFavor { get; set; } = 0;
 	
+	public int StrengthOfLikes { get; set; } = 2;
+	public int StrengthOfDislikes { get; set; } = 2;
 	public bool AcceptsPrayers { get; set; } = true;
 	public bool AcceptsDonations { get; set; } = true;
 	public bool AcceptsSacrafices { get; set; } = true;
@@ -461,6 +529,8 @@ public class Deity
 			Likes.Remove(thing);
 			Dislikes.Remove(thing);
 		}
+		
+		PlayerFavor += StrengthOfLikes - StrengthOfDislikes;
 	}
 	
 	public void OnEvent(IEvent e)
@@ -470,19 +540,19 @@ public class Deity
 			domain.OnEvent(this, e);
 	}
 	
-	public void Like(Agent agent)
+	public void Like(Agent agent, string what)
 	{
 		if (agent.Team == "player")
-			PlayerFavor++;
-		agent.Messages.Add(Name + " liked that");
+			PlayerFavor += StrengthOfLikes;
+		agent.Messages.Add(Name + " likes " + what);
 		GD.Print(Name + " likes " + agent.Name);
 	}
 	
-	public void Dislike(Agent agent)
+	public void Dislike(Agent agent, string what)
 	{
 		if (agent.Team == "player")
-			PlayerFavor--;
-		agent.Messages.Add(Name + " disliked that");
+			PlayerFavor -= StrengthOfDislikes;
+		agent.Messages.Add(Name + " dislikes " + what);
 		GD.Print(Name + " dislikes " + agent.Name);
 	}
 }
@@ -533,6 +603,7 @@ public class Level
 {
 	public Tile[,] Tiles { get; private set; }
 	public List<Agent> Agents { get; set; } = new List<Agent>();
+	public List<Item> Items { get; set; } = new List<Item>();
 	
 	public Level(int w, int h)
 	{
@@ -580,6 +651,8 @@ public class Agent
 	
 	public List<AgentTag> Tags { get; set; } = new List<AgentTag>();
 	public string Team { get; set; }
+	public Item Armor { get; set; }
+	public Item Weapon { get; set; }
 	public bool IsBusy { get; set; }
 	
 	public int X { get; set; }
@@ -622,6 +695,7 @@ public enum ItemType
 public class Item
 {
 	public string Name { get; set; }
+	public bool IsPickedUp { get; set; }
 	
 	public int X { get; set; }
 	public int Y { get; set; }

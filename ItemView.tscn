@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=2]
+
+[ext_resource path="res://ItemView.cs" type="Script" id=1]
+[ext_resource path="res://urizen.png" type="Texture" id=2]
+
+[node name="ItemView" type="Sprite"]
+texture = ExtResource( 2 )
+centered = false
+region_enabled = true
+script = ExtResource( 1 )

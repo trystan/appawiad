@@ -35,16 +35,16 @@ public class Chaotic : DeityArchetype
 				switch (Globals.Random.Next(4))
 				{
 					case 0:
-						self.Like(attack.Attacker);
+						self.Like(attack.Attacker, "you");
 						break;
 					case 1:
-						self.Like(attack.Attacked);
+						self.Like(attack.Attacked, "you");
 						break;
 					case 2:
-						self.Dislike(attack.Attacker);
+						self.Dislike(attack.Attacker, "you");
 						break;
 					case 3:
-						self.Dislike(attack.Attacked);
+						self.Dislike(attack.Attacked, "you");
 						break;
 				}
 				break;
@@ -61,6 +61,9 @@ public class Obsessed : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.StrengthOfLikes *= 2;
+		self.StrengthOfDislikes *= 2;
+		
 		Description = $"{self.Name} only cares about {self.Domains[0].Name}.";
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
 			self.Likes.Add(self.Domains[0].Name);
@@ -119,6 +122,8 @@ public class Vengeful : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.StrengthOfLikes /= 2;
+		self.StrengthOfDislikes *= 3;
 		self.AcceptsPrayers = true;
 		self.AcceptsDonations = true;
 		self.AcceptsSacrafices = true;
@@ -156,10 +161,10 @@ public class OfDeath : DeityDomain
 		{
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (likesKillingLiving && attack.Attacked.Tags.Contains(AgentTag.Living))
-					self.Like(attack.Attacker);
+					self.Like(attack.Attacker, "killing the living");
 				if (dislikesKillingUndead && attack.Attacked.Tags.Contains(AgentTag.Undead))
-					self.Dislike(attack.Attacker);
-				self.Like(attack.Attacked);
+					self.Dislike(attack.Attacker, "killing the undead");
+				self.Like(attack.Attacked, "how you died");
 				break;
 		}
 	}
@@ -188,11 +193,22 @@ public class OfHealth : DeityDomain
 		switch (e)
 		{
 			case NextTurn turn:
-				if (self.PlayerFavor > 0 && turn.Player.HP < 6)
+				if (Globals.Random.NextDouble() < self.Archetype.ChanceOfInteracting)
 				{
-					self.PlayerFavor--;
-					turn.Player.HP++;
-					turn.Player.Messages.Add($"{self.Name} healed you");
+					if (self.PlayerFavor > turn.Player.HP * 5
+						&& Globals.Random.Next(10) < turn.Player.HP)
+					{
+						self.PlayerFavor--;
+						turn.Player.HP++;
+						turn.Player.Messages.Add($"{self.Name} healed you");
+					}
+					if (self.PlayerFavor > turn.Player.HP * 5
+						&& Globals.Random.Next(20) < turn.Player.AP)
+					{
+						self.PlayerFavor--;
+						turn.Player.AP += 4;
+						turn.Player.Messages.Add($"{self.Name} has given you a boost of speed");
+					}
 				}
 				break;
 		}
@@ -207,6 +223,9 @@ public class OfLove : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.StrengthOfLikes *= 2;
+		self.StrengthOfDislikes /= 2;
+		
 		var other = self;
 		while (other == self || other.Archetype is Trickster t && t.Rival == self)
 			other = deities.ToArray()[Globals.Random.Next(deities.Count())];
@@ -250,13 +269,12 @@ public class OfCommerce : DeityDomain
 	
 	public override void OnEvent(Deity self, IEvent e)
 	{
-		if (Globals.Random.NextDouble() > self.Archetype.ChanceOfInteracting)
-			return;
-		
 		switch (e)
 		{
 			case NextTurn turn:
-				if (self.PlayerFavor > 0 && turn.Player.Money < 99)
+				if (Globals.Random.NextDouble() > self.Archetype.ChanceOfInteracting
+					&& self.PlayerFavor > turn.Player.Money
+					&& Globals.Random.Next(50) < turn.Player.Money)
 				{
 					self.PlayerFavor--;
 					turn.Player.Money++;
@@ -290,11 +308,24 @@ public class OfWar : DeityDomain
 	{
 		switch (e)
 		{
+			case NextTurn turn:
+				if (Globals.Random.NextDouble() < self.Archetype.ChanceOfInteracting
+					&& Globals.Random.Next(100) < self.PlayerFavor
+					&& self.PlayerFavor > 10
+					&& turn.Player.APRegeneration < 12)
+				{
+					turn.Player.APRegeneration++;
+					self.PlayerFavor -= 10;
+					turn.Player.Messages.Add($"You feel faster.");
+					turn.Player.Messages.Add($"{self.Name} has improved your AP regeneration.");
+				}
+				break;
+				
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (likesKillingEnemies && attack.Attacked.Team != attack.Attacker.Team)
-					self.Like(attack.Attacker);
+					self.Like(attack.Attacker, "killing enemies");
 				if (dislikesKillingAllies && attack.Attacked.Team == attack.Attacker.Team)
-					self.Dislike(attack.Attacker);
+					self.Dislike(attack.Attacker, "killing allies");
 				break;
 		}
 	}
@@ -413,12 +444,12 @@ public class OfForests : DeityDomain
 		{
 			case UsedItem used:
 				if (likesUsingWood && used.Item.Material == "wood")
-					self.Like(used.Agent);
+					self.Like(used.Agent, "your " + used.Item.Name);
 				break;
 				
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (dislikesKillingTrees && attack.Attacked.Team == "plants")
-					self.Dislike(attack.Attacker);
+					self.Dislike(attack.Attacker, "killing plants");
 				break;
 		}
 	}
@@ -449,9 +480,9 @@ public class OfMountains : DeityDomain
 		{
 			case UsedItem used:
 				if (likesUsingStone && used.Item.Material == "stone")
-					self.Like(used.Agent);
+					self.Like(used.Agent, "your " + used.Item.Name);
 				if (likesUsingMetal && used.Item.Material == "metal")
-					self.Like(used.Agent);
+					self.Like(used.Agent, "your " + used.Item.Name);
 				break;
 		}
 	}
