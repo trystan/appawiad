@@ -3,18 +3,15 @@
 [ext_resource path="res://TitleScene.cs" type="Script" id=1]
 [ext_resource path="res://urizen.png" type="Texture" id=2]
 
-[node name="TitleScene" type="Control"]
+[node name="TitleScene" type="CanvasLayer"]
 script = ExtResource( 1 )
-__meta__ = {
-"_edit_use_anchors_": false
-}
 
 [node name="Title" type="Label" parent="."]
 anchor_right = 1.0
-margin_left = 110.0
+margin_left = 10.0
 margin_top = 10.0
-margin_right = 161.0
-margin_bottom = 24.0
+margin_right = -10.0
+margin_bottom = 30.0
 text = "A priest, paladin, and athiest walk into a dungeon"
 align = 1
 valign = 1
@@ -26,15 +23,15 @@ __meta__ = {
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 20.0
-margin_top = 200.0
-margin_right = 1007.0
-margin_bottom = 508.0
+margin_top = 150.0
+margin_right = -20.0
+margin_bottom = -20.0
 __meta__ = {
 "_edit_use_anchors_": false
 }
 
 [node name="Priest" type="Control" parent="CharSelect"]
-margin_right = 987.0
+margin_right = 984.0
 margin_bottom = 100.0
 rect_min_size = Vector2( 0, 100 )
 
@@ -60,7 +57,7 @@ __meta__ = {
 
 [node name="Paladin" type="Control" parent="CharSelect"]
 margin_top = 104.0
-margin_right = 987.0
+margin_right = 984.0
 margin_bottom = 204.0
 rect_min_size = Vector2( 0, 100 )
 
@@ -86,7 +83,7 @@ __meta__ = {
 
 [node name="Athiest" type="Control" parent="CharSelect"]
 margin_top = 208.0
-margin_right = 987.0
+margin_right = 984.0
 margin_bottom = 308.0
 rect_min_size = Vector2( 0, 100 )
 
@@ -112,10 +109,11 @@ __meta__ = {
 }
 
 [node name="Footer" type="Label" parent="."]
-margin_left = 102.518
-margin_top = 537.763
-margin_right = 416.518
-margin_bottom = 551.763
+anchor_right = 1.0
+margin_left = 10.0
+margin_top = 35.0
+margin_right = -10.0
+margin_bottom = 55.0
 text = "-- A 2021 7DRL by Trystan Spangler --"
 align = 1
 valign = 1

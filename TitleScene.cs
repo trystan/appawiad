@@ -1,20 +1,8 @@
 using Godot;
 using System;
 
-public class TitleScene : Control
+public class TitleScene : CanvasLayer
 {
-	Label _title;
-	Label _footer;
-	
-	public override void _Ready()
-	{
-		_title = (Label)GetNode("Title");
-		_title.RectPosition = new Vector2(OS.WindowSize.x / 2 - _title.RectSize.x / 2, 20);
-		
-		_footer = (Label)GetNode("Footer");
-		_footer.RectPosition = new Vector2(OS.WindowSize.x / 2 - _title.RectSize.x / 2, OS.WindowSize.y - 50);
-	}
-	
 	public override void _UnhandledInput(InputEvent e)
 	{
 		if (e is InputEventKey key && key.Pressed)
@@ -22,16 +10,22 @@ public class TitleScene : Control
 			switch (key.Scancode)
 			{
 				case (int)KeyList.A:
+					foreach (var deity in Globals.Deities)
+						deity.PlayerFavor += 20;
 					GD.Print("priest");
 					GetTree().ChangeScene("res://PlayScene.tscn");
 					break;
 					
 				case (int)KeyList.B:
+					foreach (var deity in Globals.Deities)
+						deity.PlayerFavor += 5;
 					GD.Print("paladin");
 					GetTree().ChangeScene("res://PaladinSetupScene.tscn");
 					break;
 					
 				case (int)KeyList.C:
+					foreach (var deity in Globals.Deities)
+						deity.PlayerFavor = Globals.Random.Next(-5,6);
 					GD.Print("athiest");
 					GetTree().ChangeScene("res://PlayScene.tscn");
 					break;

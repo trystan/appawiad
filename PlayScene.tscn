@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=4 format=2]
 
 [ext_resource path="res://PlayScene.cs" type="Script" id=1]
 [ext_resource path="res://tiles.tres" type="TileSet" id=2]
+[ext_resource path="res://DeityPopup.cs" type="Script" id=3]
 
 [node name="PlayScene" type="Node2D"]
 script = ExtResource( 1 )
@@ -12,3 +13,43 @@ tile_set = ExtResource( 2 )
 cell_size = Vector2( 24, 24 )
 cell_clip_uv = true
 format = 1
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Sidebar" type="RichTextLabel" parent="CanvasLayer"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = -240.0
+margin_top = 10.0
+margin_bottom = -10.0
+bbcode_enabled = true
+bbcode_text = "HP 10/10 $34"
+text = "HP 10/10 $34"
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="DeityPopup" type="ColorRect" parent="CanvasLayer"]
+visible = false
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+margin_left = -300.0
+margin_top = -250.0
+margin_right = 300.0
+margin_bottom = 250.0
+color = Color( 0, 0, 0, 1 )
+script = ExtResource( 3 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Summary" type="RichTextLabel" parent="CanvasLayer/DeityPopup"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 10.0
+margin_top = 10.0
+margin_right = -10.0
+margin_bottom = -10.0

@@ -55,6 +55,7 @@
   <ItemGroup>
     <Compile Include="AgentView.cs" />
     <Compile Include="Deities.cs" />
+    <Compile Include="DeityPopup.cs" />
     <Compile Include="PaladinSetupScene.cs" />
     <Compile Include="PlayScene.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

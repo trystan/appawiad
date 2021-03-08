@@ -1,18 +1,13 @@
 using Godot;
 using System;
 using System.Linq;
-using System.Collections.Generic;
 
-public class PaladinSetupScene : CanvasLayer
+public class DeityPopup : ColorRect
 {
-	Dictionary<uint, Deity> _choices = new Dictionary<uint, Deity>();
-	
 	public override void _Ready()
 	{
-		var text = (RichTextLabel)GetNode("List");
-		var chars = "abcdefghijklmnopqrstuvwxyz";
+		var text = (RichTextLabel)GetNode("Summary");
 		
-		var i = 0;
 		foreach (var deity in Globals.Deities)
 		{
 			text.BbcodeText += "== " + deity.GetFullTitle() + " ==";
@@ -34,33 +29,22 @@ public class PaladinSetupScene : CanvasLayer
 				+ (deity.AcceptsPrayers ? " does " : " does not ") + "accept prayers,"
 				+ (deity.AcceptsDonations ? " does " : " does not ") + "accept donations, and"
 				+ (deity.AcceptsSacrafices ? " does " : " does not ") + "accept sacrafices.";
-			_choices[(uint)chars[i]] = deity;
 			
-			text.BbcodeText += $"\n-- press [{chars[i]}] to devote yourself to {deity.Name} --";
 			text.BbcodeText += "\n\n";
-			i++;
 		}
 	}
 	
 	public override void _UnhandledInput(InputEvent e)
 	{
+		if (!Visible)
+			return;
+		
 		if (e is InputEventKey key && key.Pressed)
 		{
-			if (_choices.ContainsKey(key.Unicode))
+			if (key.Scancode == (int)KeyList.Escape
+				|| key.Scancode == (int)KeyList.Tab)
 			{
-				var deity = _choices[key.Unicode];
-				deity.PlayerFavor += 80;
-				var title = deity.GetShortTitle();
-				
-				foreach (var other in Globals.Deities)
-				{
-					if (other.Likes.Contains(title))
-						other.PlayerFavor += 10;
-					if (other.Dislikes.Contains(title))
-						other.PlayerFavor -= 10;
-				}
-				
-				GetTree().ChangeScene("res://PlayScene.tscn");
+				Hide();
 			}
 		}
 	}

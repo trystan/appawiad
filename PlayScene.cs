@@ -6,6 +6,9 @@ using System.Collections.Generic;
 public class PlayScene : Node2D
 {
 	TileMap _tileMap;
+	RichTextLabel _sidebar;
+	Control _deityPopup;
+	
 	PackedScene _agentView;
 	Level _level;
 	Agent _player;
@@ -15,6 +18,8 @@ public class PlayScene : Node2D
 	{
 		_agentView = (PackedScene)ResourceLoader.Load("res://AgentView.tscn");
 		_tileMap = (TileMap)GetNode("TileMap");
+		_sidebar = (RichTextLabel)GetNode("CanvasLayer/Sidebar");
+		_deityPopup = (Control)GetNode("CanvasLayer/DeityPopup");
 		
 		var catalog = new Catalog();
 		
@@ -35,6 +40,7 @@ public class PlayScene : Node2D
 			Team = "player",
 			Tags = new List<AgentTag> { AgentTag.Living }
 		};
+		_player.Messages.Add("Welcome!");
 		_level.Agents.Add(_player);
 		AddChild(playerView);
 		
@@ -78,13 +84,19 @@ public class PlayScene : Node2D
 	
 	public override void _UnhandledInput(InputEvent e)
 	{
-		if (_player == null)
+		if (_player == null || _deityPopup.Visible)
 			return;
 		
 		if (e is InputEventKey key && key.Pressed)
 		{
 			switch (key.Scancode)
 			{
+				case (int)KeyList.Tab:
+					_deityPopup.Show();
+					foreach (var a in _level.Agents)
+						GD.Print($"{a.Name} {a.HP}/6 {a.AP}+{a.APRegeneration}");
+					break;
+					
 				case (int)KeyList.Left:
 					_nextPlayerCommand = new MoveBy(-1, 0);
 					break;
@@ -102,29 +114,64 @@ public class PlayScene : Node2D
 					break;
 			}
 		}
+		
+		var lines = new List<string> {
+			$"[@] {_player.Name}",
+			$"HP {_player.HP}/6   AP {_player.AP}+{_player.APRegeneration}",
+			$"${_player.Money}",
+			$"Armor: -none-",
+			$"Weapon: -none-",
+			"",
+			"[table=2]",
+			"[cell][tab] Deity[/cell][cell]Favor[/cell]"
+		};
+		foreach (var deity in Globals.Deities)
+			lines.Add($"[cell]{deity.GetShortTitle()}[/cell][cell]{deity.PlayerFavor}[/cell]]");
+		lines.Add("[/table]");
+		var skipCount = Math.Max(0, _player.Messages.Count - 10);
+		lines.Add("\n[m] Messages:");
+		lines.AddRange(_player.Messages.Skip(skipCount));
+		
+		_sidebar.BbcodeText = string.Join("\n", lines);
 	}
 	
 	public override void _Process(float delta)
 	{
-		if (_level.Agents.Any() && !_level.Agents[0].IsBusy)
+		if (_deityPopup.Visible)
+			return;
+		
+		var ticks = 0;
+		while (_level.Agents.Any()
+			&& !_level.Agents[0].IsBusy
+			&& ticks++ < 10)
 		{
-			var agent = _level.Agents[0];
-			
-			if (agent == _player)
+			if (_level.Agents[0].AP < 1)
 			{
-				if (_nextPlayerCommand != null)
-				{
-					_level.Agents.RemoveAt(0);
-					_nextPlayerCommand.Do(_level, _player);
-					_nextPlayerCommand = null;
-					_level.Agents.Add(agent);
-				}
+				_level.Agents.ForEach(a => a.EndTurn());
+				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
+				Globals.OnEvent(new NextTurn { Player = _player });
+			}
+			
+			var agent = _level.Agents[0];
+			if (agent.AP < 1)
+				break;
+			else if (agent == _player)
+			{
+				if (_nextPlayerCommand == null)
+					break;
+					
+				_level.Agents.RemoveAt(0);
+				_nextPlayerCommand.Do(_level, _player);
+				_nextPlayerCommand = null;
+				_level.Agents.Add(agent);
+				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
 			}
 			else
 			{
 				_level.Agents.RemoveAt(0);
 				GetCommandForAi(agent).Do(_level, agent);
 				_level.Agents.Add(agent);
+				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
 			}
 		}
 	}
@@ -149,15 +196,10 @@ public class Catalog
 {
 	public Agent NewEnemy(int x, int y)
 	{
-		switch (Globals.Random.Next(5))
-		{
-			case 0: return NewGobbo(x, y);
-			case 1: return NewSkeleton(x, y);
-			case 2: return NewSpider(x, y);
-			case 3: return NewPig(x, y);
-			case 4: return NewTree(x, y);
-		}
-		return null;
+		var constructors = new Func<int,int,Agent>[] {
+			NewGobbo, NewSkeleton, NewSpider, NewPig, NewTree
+		};
+		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
 	
 	public Agent NewGobbo(int x, int y) => new Agent(x, y, 31, 5) {
@@ -181,13 +223,29 @@ public class Catalog
 	public Agent NewSpider(int x, int y) => new Agent(x, y, 2, 14) {
 		Name = "spider",
 		Team = "critters",
-		Tags = new List<AgentTag> { AgentTag.Living }
+		Tags = new List<AgentTag> { AgentTag.Living },
+		HP = 3,
+		APRegeneration = 10
 	};
 	
 	public Agent NewTree(int x, int y) => new Agent(x, y, 0, 26) {
 		Name = "tree",
-		Team = "plant",
+		Team = "plants",
 		Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Stationary }
+	};
+	
+	public Item NewItem(int x, int y)
+	{
+		var constructors = new Func<int,int,Item>[] {
+			NewSword
+		};
+		return constructors[Globals.Random.Next(constructors.Length)](x, y);
+	}
+	
+	public Item NewSword(int x, int y) => new Item(x, y, 26, 21) {
+		Name = "Sword",
+		Type = ItemType.Weapon,
+		Material = "metal",
 	};
 }
 
@@ -209,6 +267,8 @@ public class MoveBy : ICommand
 	
 	public void Do(Level level, Agent agent)
 	{
+		agent.AP -= 10;
+		
 		if (level.GetTile(agent.X + X, agent.Y + Y).BlocksMovement)
 			return;
 		if (X == 0 && Y == 0)
@@ -220,8 +280,18 @@ public class MoveBy : ICommand
 		var other = level.Agents.FirstOrDefault(a => a.X == nextX && a.Y == nextY);
 		if (other != null)
 		{
-			other.Die();
-			level.Agents.Remove(other);
+			other.TakeDamage(1);
+			if (other.HP < 1)
+			{
+				agent.Messages.Add($"You kill the {other.Name}");
+				other.Messages.Add("You were killed by a {other.Name}");
+				level.Agents.Remove(other);
+			}
+			else
+			{
+				agent.Messages.Add($"You deal 1 damage to the {other.Name}");
+				other.Messages.Add($"You take 1 damage from the {agent.Name}");
+			}
 			Globals.OnEvent(new DidAttack(agent, other));
 		}
 		else
@@ -366,6 +436,12 @@ public class Deity
 			return Name + " the " + Archetype.Name + $" {title} of " + Util.AndList(Domains.Select(d => d.Name));
 	}
 	
+	public string GetShortTitle()
+	{
+		var title = Pronoun == "he" ? "god" : "godess";
+		return Name + " the " + Archetype.Name + " " + title;
+	}
+	
 	public void Finalize(IEnumerable<Deity> deities)
 	{
 		AcceptsPrayers = Globals.Random.NextDouble() < 0.9f;
@@ -396,11 +472,17 @@ public class Deity
 	
 	public void Like(Agent agent)
 	{
+		if (agent.Team == "player")
+			PlayerFavor++;
+		agent.Messages.Add(Name + " liked that");
 		GD.Print(Name + " likes " + agent.Name);
 	}
 	
 	public void Dislike(Agent agent)
 	{
+		if (agent.Team == "player")
+			PlayerFavor--;
+		agent.Messages.Add(Name + " disliked that");
 		GD.Print(Name + " dislikes " + agent.Name);
 	}
 }
@@ -412,6 +494,7 @@ public abstract class DeityArchetype
 	public int NumberOfDomains { get; set; } = 3;
 	public float ChanceOfLikes { get; set; } = 0.9f;
 	public float ChanceOfDislikes { get; set; } = 0.9f;
+	public float ChanceOfInteracting { get; set; } = 0.25f;
 	
 	public DeityArchetype(string name)
 	{
@@ -449,7 +532,7 @@ public abstract class DeityDomain
 public class Level
 {
 	public Tile[,] Tiles { get; private set; }
-	public List<Agent> Agents { get; private set; } = new List<Agent>();
+	public List<Agent> Agents { get; set; } = new List<Agent>();
 	
 	public Level(int w, int h)
 	{
@@ -505,7 +588,12 @@ public class Agent
 	public int SpriteX { get; set; }
 	public int SpriteY { get; set; }
 	
-	public int HP { get; set; } = 1;
+	public int HP { get; set; } = 6;
+	public int AP { get; set; } = 10;
+	public int APRegeneration { get; set; } = 10;
+	public int Money { get; set; }
+	
+	public List<string> Messages { get; set; } = new List<string>();
 	
 	public Agent(int x, int y, int spriteX, int spriteY)
 	{
@@ -515,9 +603,41 @@ public class Agent
 		SpriteY = spriteY;
 	}
 	
-	public void Die()
+	public void TakeDamage(int amount)
 	{
-		HP = -1;
+		HP -= amount;
+	}
+	
+	public void EndTurn()
+	{
+		AP += Math.Max(1, APRegeneration);
+	}
+}
+
+public enum ItemType
+{
+	Armor, Weapon, Other
+}
+
+public class Item
+{
+	public string Name { get; set; }
+	
+	public int X { get; set; }
+	public int Y { get; set; }
+	
+	public int SpriteX { get; set; }
+	public int SpriteY { get; set; }
+	
+	public ItemType Type { get; set; }
+	public string Material { get; set; }
+	
+	public Item(int x, int y, int spriteX, int spriteY)
+	{
+		X = x;
+		Y = y;
+		SpriteX = spriteX;
+		SpriteY = spriteY;
 	}
 }
 
@@ -534,4 +654,20 @@ public class DidAttack : IEvent
 		Attacker = attacker;
 		Attacked = attacked;
 	}
+}
+
+public class UsedItem : IEvent
+{
+	public Agent Agent { get; set; }
+	public Item Item { get; set; }
+	public UsedItem(Agent agent, Item item)
+	{
+		Agent = agent;
+		Item = item;
+	}
+}
+
+public class NextTurn : IEvent
+{
+	public Agent Player { get; set; }
 }
