@@ -57,6 +57,7 @@
     <Compile Include="Deities.cs" />
     <Compile Include="DeityPopup.cs" />
     <Compile Include="ItemView.cs" />
+    <Compile Include="Level.cs" />
     <Compile Include="PaladinSetupScene.cs" />
     <Compile Include="PlayScene.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

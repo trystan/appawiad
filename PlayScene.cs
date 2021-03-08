@@ -5,67 +5,43 @@ using System.Collections.Generic;
 
 public class PlayScene : Node2D
 {
-	TileMap _tileMap;
 	RichTextLabel _sidebar;
 	Control _deityPopup;
 	
-	PackedScene _agentView;
-	PackedScene _itemView;
 	Level _level;
 	Agent _player;
 	ICommand _nextPlayerCommand;
 	
 	public override void _Ready()
 	{
-		_agentView = (PackedScene)ResourceLoader.Load("res://AgentView.tscn");
-		_itemView = (PackedScene)ResourceLoader.Load("res://ItemView.tscn");
-		_tileMap = (TileMap)GetNode("TileMap");
 		_sidebar = (RichTextLabel)GetNode("CanvasLayer/Sidebar");
 		_deityPopup = (Control)GetNode("CanvasLayer/DeityPopup");
 		
+		_level = (Level)GetNode("Level");
+		_level.Setup(20, 20);
+		
 		var catalog = new Catalog();
-		
-		_level = new Level(20, 20);
-		
-		for (var x = 0; x < _level.Tiles.GetLength(0); x++)
-		{
-			for (var y = 0; y < _level.Tiles.GetLength(1); y++)
-			{
-				var tile = _level.Tiles[x,y];
-				_tileMap.SetCell(x, y, tile.RandomIndex());
-			}
-		}
 		
 		for (var i = 0; i < 8; i++)
 		{
-			var view = (ItemView)_itemView.Instance();
 			var x = Globals.Random.Next(32);
 			var y = Globals.Random.Next(32);
-			
-			view.Item = catalog.NewItem(x, y);
-			_level.Items.Add(view.Item);
-			AddChild(view);
+			_level.Add(catalog.NewItem(x, y));
 		}
 		
-		var playerView = (AgentView)_agentView.Instance();
-		playerView.Agent = _player = new Agent(3, 4, 0, 9) {
+		_player = new Agent(3, 4, 0, 9) {
 			Name = "player",
 			Team = "player",
 			Tags = new List<AgentTag> { AgentTag.Living }
 		};
 		_player.Messages.Add("Welcome!");
-		_level.Agents.Add(_player);
-		AddChild(playerView);
+		_level.Add(_player);
 		
 		for (var i = 0; i < 32; i++)
 		{
-			var view = (AgentView)_agentView.Instance();
 			var x = Globals.Random.Next(32);
 			var y = Globals.Random.Next(32);
-			
-			view.Agent = catalog.NewEnemy(x, y);
-			_level.Agents.Add(view.Agent);
-			AddChild(view);
+			_level.Add(catalog.NewEnemy(x, y));
 		}
 	}
 	
@@ -192,21 +168,6 @@ public class PlayScene : Node2D
 				_level.Agents.Add(agent);
 				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
 			}
-		}
-	}
-	
-	public override void _Draw()
-	{
-		var color = new Color(1,1,1,0.1f);
-		
-		for (var x = 0; x < 32; x++)
-		{
-			DrawLine(new Vector2(x*24, 0), new Vector2(x*24, 32*24), color);
-		}
-		
-		for (var y = 0; y < 32; y++)
-		{
-			DrawLine(new Vector2(0, y*24), new Vector2(32*24, y*24), color);
 		}
 	}
 }
@@ -342,7 +303,9 @@ public class PickupItem : ICommand
 			if (agent.Armor != null)
 			{
 				agent.Armor.IsPickedUp = false;
-				level.Items.Add(agent.Armor);
+				agent.Armor.X = agent.X;
+				agent.Armor.Y = agent.Y;
+				level.Add(agent.Armor);
 				agent.Messages.Add($"You drop your {agent.Armor.Name}");
 			}
 			agent.Armor = item;
@@ -357,7 +320,9 @@ public class PickupItem : ICommand
 			if (agent.Weapon != null)
 			{
 				agent.Weapon.IsPickedUp = false;
-				level.Items.Add(agent.Weapon);
+				agent.Weapon.X = agent.X;
+				agent.Weapon.Y = agent.Y;
+				level.Add(agent.Weapon);
 				agent.Messages.Add($"You drop your {agent.Weapon.Name}");
 			}
 			agent.Weapon = item;
@@ -596,33 +561,6 @@ public abstract class DeityDomain
 	
 	public virtual void OnEvent(Deity self, IEvent e)
 	{
-	}
-}
-
-public class Level
-{
-	public Tile[,] Tiles { get; private set; }
-	public List<Agent> Agents { get; set; } = new List<Agent>();
-	public List<Item> Items { get; set; } = new List<Item>();
-	
-	public Level(int w, int h)
-	{
-		Tiles = new Tile[32,32];
-		
-		for (var x = 0; x < Tiles.GetLength(0); x++)
-		{
-			for (var y = 0; y < Tiles.GetLength(1); y++)
-			{
-				Tiles[x,y] = Globals.Random.NextDouble() < 0.1 ? Tile.Wall : Tile.Floor;
-			}
-		}
-	}
-	
-	public Tile GetTile(int x, int y)
-	{
-		if (x < 0 || x >= Tiles.GetLength(0) || y < 0 || y >= Tiles.GetLength(1))
-			return Tile.Wall;
-		return Tiles[x,y];
 	}
 }
 
