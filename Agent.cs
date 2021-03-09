@@ -80,7 +80,12 @@ public class Agent : Sprite
 	
 	public void TakeDamage(Attack attack)
 	{
-		HP -= Math.Max(0, attack.TotalDamage);
+		TakeDamage(Math.Max(0, attack.TotalDamage));
+	}
+	
+	public void TakeDamage(int amount)
+	{
+		HP = Math.Min(HP - amount, HPMax);
 	}
 	
 	public void EndTurn()

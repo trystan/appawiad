@@ -27,41 +27,34 @@ public class Chaotic : DeityArchetype
 		switch (e)
 		{
 			case NextTurn next:
-				if (next.Player.StatusEffects.Count > 0
+				var timedEffects = next.Player.StatusEffects.Where(ef => ef.TurnsRemaining != null).ToArray();
+				if (timedEffects.Length > 0
 					&& Globals.Random.NextDouble() < 0.01)
 				{
-					var effect = next.Player.StatusEffects[Globals.Random.Next(next.Player.StatusEffects.Count)];
+					var effect = timedEffects[Globals.Random.Next(timedEffects.Length)];
 					next.Player.Messages.Add($"{self.Name} is bored of {effect.Name}");
 					effect.End(null, next.Player);
 				}
 				
+				switch (Globals.Random.Next(100))
+				{
+					case 0:
+						self.Like(next.Player, "just because");
+						break;
+					case 1:
+						self.Dislike(next.Player, "just because");
+						break;
+				}
+				
 				foreach (var key in self.FavorPerTeam.Keys.ToArray())
 				{
-					if (Globals.Random.NextDouble() < 0.66)
+					if (Globals.Random.NextDouble() < 0.9)
 						continue;
 						
 					if (self.FavorPerTeam[key] > 0)
 						self.FavorPerTeam[key] += Globals.Random.Next(3) - Globals.Random.Next(4);
 					else
 						self.FavorPerTeam[key] += Globals.Random.Next(4) - Globals.Random.Next(3);
-				}
-				break;
-				
-			case DidAttack attack when Globals.Random.NextDouble() < 0.05f:
-				switch (Globals.Random.Next(4))
-				{
-					case 0:
-						self.Like(attack.Attacker, "your style");
-						break;
-					case 1:
-						self.Like(attack.Attacked, "your style");
-						break;
-					case 2:
-						self.Dislike(attack.Attacker, "your style");
-						break;
-					case 3:
-						self.Dislike(attack.Attacked, "your style");
-						break;
 				}
 				break;
 		}
@@ -233,7 +226,8 @@ public class OfDeath : DeityDomain
 					self.Like(attack.Attacker, "killing the living");
 				if (dislikesKillingUndead && attack.Attacked.Tags.Contains(AgentTag.Undead))
 					self.Dislike(attack.Attacker, "killing the undead");
-				self.Like(attack.Attacked, "how you died");
+				if (Globals.Random.NextDouble() < 0.25)
+					self.Like(attack.Attacked, "how you died");
 				break;
 		}
 	}
@@ -315,6 +309,17 @@ public class OfHealth : DeityDomain
 			if (a.Attacker.Team == "undead")
 				a.DefendBonus--;
 		});
+	}
+	
+	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		var healing = new StatusEffect {
+			Name = $"the healing touch of [color={Globals.TextColorGood}]{self.Name}[/color]",
+			TurnsRemaining = 5
+		};
+		healing.AddTurnEffect(null, () => agent.TakeDamage(-1));
+		
+		yield return healing;
 	}
 }
 
@@ -512,6 +517,17 @@ public class OfStorms : DeityDomain
 			() => { agent.AP -= 20; },
 			() => { });
 	}
+	
+	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		var power = new StatusEffect {
+			Name = $"the subtle power of [color={Globals.TextColorGood}]{self.Name}[/color]",
+			TurnsRemaining = 10
+		};
+		power.AddTurnEffect("+AP", () => agent.AP += 4);
+		
+		yield return power;
+	}
 }
 
 public class OfAgriculture : DeityDomain
@@ -562,8 +578,23 @@ public class OfFire : DeityDomain
 		});
 	}
 	
-	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	public override IEnumerable<StatusEffect> GetBadInterventions(Deity self, Level level, Agent agent)
 	{
+		var onFire = new StatusEffect {
+			Name = "[color=#ff0000]On fire![/color]",
+			TurnsRemaining = 5
+		};
+		onFire.AddTurnEffect(null, () => agent.TakeDamage(1));
+		
+		var disliked = new StatusEffect {
+			Name = $"disliked by [color={Globals.TextColorBad}]{self.Name}[/color]",
+			TurnsRemaining = 10
+		};
+		disliked.AddEffect(null,
+			() => onFire.Begin(level, agent),
+			() => { });
+		
+		yield return disliked;
 	}
 }
 

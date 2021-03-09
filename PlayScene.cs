@@ -424,12 +424,18 @@ public class Attack
 	{
 		TotalAttack = Attacker.ATK + AttackBonus;
 		TotalDefend = Defender.DEF + DefendBonus;
-		var total = (float)TotalAttack / TotalDefend;
-		var hits = (int)total;
-		var bonusChance = total - hits;
-		if (Globals.Random.NextDouble() < bonusChance)
-			hits++;
-		TotalDamage = hits;
+		
+		if (TotalDefend < 1)
+			TotalDamage = TotalAttack * 2;
+		else
+		{
+			var total = (float)TotalAttack / TotalDefend;
+			var hits = (int)total;
+			var bonusChance = total - hits;
+			if (Globals.Random.NextDouble() < bonusChance)
+				hits++;
+			TotalDamage = hits;
+		}
 	}
 }
 
@@ -660,6 +666,50 @@ public class Deity
 		Archetype.OnEvent(this, e);
 		foreach (var domain in Domains)
 			domain.OnEvent(this, e);
+		
+		if (e is NextTurn turn && Globals.Random.NextDouble() < 0.01)
+			FavorCheck(turn.Player);
+	}
+	
+	public List<StatusEffect> GetInterventions(Level level, Agent agent)
+	{
+		var candidates = new List<StatusEffect>();
+		
+		if (!FavorPerTeam.ContainsKey(agent.Team))
+			FavorPerTeam[agent.Team] = 0;
+		
+		if (FavorPerTeam[agent.Team] > 0)
+		{
+			candidates.AddRange(Archetype.GetGoodInterventions(this, level, agent));
+			foreach (var domain in Domains)
+				candidates.AddRange(domain.GetGoodInterventions(this, level, agent));
+		}
+		else if (FavorPerTeam[agent.Team] < 0)
+		{
+			candidates.AddRange(Archetype.GetBadInterventions(this, level, agent));
+			foreach (var domain in Domains)
+				candidates.AddRange(domain.GetBadInterventions(this, level, agent));
+		}
+		
+		if (FavorPerTeam[agent.Team] > 4
+				&& agent.StatusEffects.Count < 2
+				&& Globals.Random.NextDouble() < ChanceOfBlessing)
+		{
+			var effect = MakeBlessing(null, agent);
+			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
+				candidates.Add(effect);
+		}
+		
+		if (FavorPerTeam[agent.Team] < 1
+				&& agent.StatusEffects.Count < 3
+				&& Globals.Random.NextDouble() < ChanceOfBlessing)
+		{
+			var effect = MakeCurse(null, agent);
+			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
+				candidates.Add(effect);
+		}
+		
+		return candidates;
 	}
 	
 	public StatusEffect MakeBlessing(Level level, Agent agent)
@@ -728,6 +778,30 @@ public class Deity
 		return curse;
 	}
 	
+	public void FavorCheck(Agent agent)
+	{
+		if (!FavorPerTeam.ContainsKey(agent.Team))
+			FavorPerTeam[agent.Team] = 0;
+		
+		if (FavorPerTeam[agent.Team] > 0)
+		{
+			if (Globals.Random.Next(100) < FavorPerTeam[agent.Team])
+				FavorPerTeam[agent.Team]--;
+		}
+		else if (FavorPerTeam[agent.Team] < 0)
+		{
+			if (Globals.Random.Next(100) < -FavorPerTeam[agent.Team])
+				FavorPerTeam[agent.Team]++;
+		}
+		
+		var candidates = GetInterventions(null, agent);
+		if (candidates.Any())
+		{
+			var chosen = candidates[Globals.Random.Next(candidates.Count)];
+			chosen.Begin(null, agent);
+		}
+	}
+	
 	public void Like(Agent agent, string what)
 	{
 		if (!FavorPerTeam.ContainsKey(agent.Team))
@@ -735,18 +809,7 @@ public class Deity
 		FavorPerTeam[agent.Team] += StrengthOfLikes;
 		agent.Messages.Add($"[color={Globals.TextColorGood}]{Name} likes {what}[/color]");
 		GD.Print(Name + " likes team " + agent.Team + " because " + what);
-		
-		if (FavorPerTeam[agent.Team] > 4
-				&& agent.StatusEffects.Count < 2
-				&& Globals.Random.NextDouble() < ChanceOfBlessing)
-		{
-			var effect = MakeBlessing(null, agent);
-			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
-			{
-				FavorPerTeam[agent.Team] -= 3;
-				effect.Begin(null, agent);
-			}
-		}
+		FavorCheck(agent);
 	}
 	
 	public void Dislike(Agent agent, string what)
@@ -756,18 +819,7 @@ public class Deity
 		FavorPerTeam[agent.Team] -= StrengthOfDislikes;
 		agent.Messages.Add($"[color={Globals.TextColorBad}]{Name} dislikes {what}[/color]");
 		GD.Print(Name + " dislikes team " + agent.Team + " because " + what);
-		
-		if (FavorPerTeam[agent.Team] < 1
-				&& agent.StatusEffects.Count < 3
-				&& Globals.Random.NextDouble() < ChanceOfBlessing)
-		{
-			var effect = MakeCurse(null, agent);
-			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
-			{
-				FavorPerTeam[agent.Team] = Math.Min(FavorPerTeam[agent.Team] + 2, 0);
-				effect.Begin(null, agent);
-			}
-		}
+		FavorCheck(agent);
 	}
 }
 
@@ -800,6 +852,16 @@ public abstract class DeityArchetype
 	public virtual void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
 	}
+	
+	public virtual IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		yield break;
+	}
+	
+	public virtual IEnumerable<StatusEffect> GetBadInterventions(Deity self, Level level, Agent agent)
+	{
+		yield break;
+	}
 }
 
 public abstract class DeityDomain
@@ -826,6 +888,16 @@ public abstract class DeityDomain
 	
 	public virtual void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
+	}
+	
+	public virtual IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		yield break;
+	}
+	
+	public virtual IEnumerable<StatusEffect> GetBadInterventions(Deity self, Level level, Agent agent)
+	{
+		yield break;
 	}
 }
 
@@ -889,29 +961,40 @@ public class NextTurn : IEvent
 public class StatusEffect
 {
 	public string Name { get; set; }
-	public int TurnsRemaining { get; set; }
+	public int? TurnsRemaining { get; set; }
 	public List<string> Descriptions { get; } = new List<string>();
 	public List<Action> BeginEffects { get; } = new List<Action>();
 	public List<Action> EndEffects { get; } = new List<Action>();
 	public List<Action<Attack>> AttackEffects { get; } = new List<Action<Attack>>();
 	public List<Action<Attack>> DefendEffects { get; } = new List<Action<Attack>>();
+	public List<Action> EachTurnEffects { get; } = new List<Action>();
 	
 	public void AddEffect(string description, Action begin, Action end)
 	{
-		Descriptions.Add(description);
+		if (description != null)
+			Descriptions.Add(description);
 		BeginEffects.Add(begin);
 		EndEffects.Add(end);
 	}
 	
+	public void AddTurnEffect(string description, Action eachTurn)
+	{
+		if (description != null)
+			Descriptions.Add(description);
+		EachTurnEffects.Add(eachTurn);
+	}
+	
 	public void AddAttackEffect(string description, Action<Attack> effect)
 	{
-		Descriptions.Add(description);
+		if (description != null)
+			Descriptions.Add(description);
 		AttackEffects.Add(effect);
 	}
 	
 	public void AddDefendEffect(string description, Action<Attack> effect)
 	{
-		Descriptions.Add(description);
+		if (description != null)
+			Descriptions.Add(description);
 		DefendEffects.Add(effect);
 	}
 	
@@ -933,9 +1016,14 @@ public class StatusEffect
 	
 	public void OnTurn(Level level, Agent agent)
 	{
-		TurnsRemaining--;
-		if (TurnsRemaining < 0)
-			End(level, agent);
+		foreach (var effect in EachTurnEffects)
+			effect();
+		if (TurnsRemaining.HasValue)
+		{
+			TurnsRemaining--;
+			if (TurnsRemaining < 0)
+				End(level, agent);
+		}
 	}
 	
 	public void ParticipateAsAttacker(Attack attack)
