@@ -28,6 +28,14 @@ public class Chaotic : DeityArchetype
 		switch (e)
 		{
 			case NextTurn next:
+				if (next.Player.StatusEffects.Count > 0
+					&& Globals.Random.NextDouble() < 0.1)
+				{
+					var effect = next.Player.StatusEffects[Globals.Random.Next(next.Player.StatusEffects.Count)];
+					next.Player.Messages.Add($"{self.Name} tires of {effect.Name}");
+					effect.End(null, next.Player);
+				}
+				
 				foreach (var key in self.FavorPerTeam.Keys.ToArray())
 					self.FavorPerTeam[key] += Globals.Random.Next(5) - Globals.Random.Next(5);
 				break;
@@ -51,6 +59,18 @@ public class Chaotic : DeityArchetype
 				break;
 		}
 	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		blessing.TurnsRemaining += Globals.Random.Next(10);
+		blessing.TurnsRemaining -= Globals.Random.Next(10);
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		curse.TurnsRemaining += Globals.Random.Next(10);
+		curse.TurnsRemaining -= Globals.Random.Next(10);
+	}
 }
 
 public class Obsessed : DeityArchetype
@@ -62,6 +82,8 @@ public class Obsessed : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.ChanceOfBlessing *= 2;
+		self.ChanceOfCurse *= 2;
 		self.StrengthOfLikes *= 2;
 		self.StrengthOfDislikes *= 2;
 		
@@ -105,6 +127,8 @@ public class Sleeping : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.ChanceOfBlessing = 0;
+		self.ChanceOfCurse = 0;
 		self.AcceptsPrayers = false;
 		self.AcceptsDonations = false;
 		self.AcceptsSacrafices = false;
@@ -123,12 +147,34 @@ public class Vengeful : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.ChanceOfBlessing /= 2;
+		self.ChanceOfCurse *= 2;
 		self.StrengthOfLikes /= 2;
 		self.StrengthOfDislikes *= 3;
 		self.AcceptsPrayers = true;
 		self.AcceptsDonations = true;
 		self.AcceptsSacrafices = true;
 		Description = "A vengeful deity is easy to displease but often intervenes to help those who worship them.";
+	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		if (agent.HP < 6)
+		{
+			blessing.AddEffect("instant +HP",
+				() => { agent.HP++; },
+				() => { });
+		}
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		if (agent.HP > 3)
+		{
+			curse.AddEffect("instant -HP",
+				() => { agent.HP--; },
+				() => { });
+		}
 	}
 }
 
@@ -217,6 +263,20 @@ public class OfHealth : DeityDomain
 				break;
 		}
 	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		if (agent.HP < 10)
+		{
+			blessing.AddEffect("instant +HP",
+				() => { agent.HP++; },
+				() => { });
+		}
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+	}
 }
 
 public class OfLove : DeityDomain
@@ -227,6 +287,8 @@ public class OfLove : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.ChanceOfBlessing += 0.25f;
+		self.ChanceOfCurse -= 0.25f;
 		self.StrengthOfLikes *= 2;
 		self.StrengthOfDislikes /= 2;
 		
@@ -236,6 +298,20 @@ public class OfLove : DeityDomain
 		
 		self.Likes.Add(other.GetShortTitle());
 		other.Likes.Add(self.GetShortTitle());
+	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		if (agent.HP < 5)
+		{
+			blessing.AddEffect("instant +HP",
+				() => { agent.HP++; },
+				() => { });
+		}
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
 	}
 }
 
@@ -288,6 +364,26 @@ public class OfCommerce : DeityDomain
 				break;
 		}
 	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		if (agent.Money < 25)
+		{
+			blessing.AddEffect("instant +money",
+				() => { agent.Money++; },
+				() => { });
+		}
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		if (agent.Money > 10)
+		{
+			curse.AddEffect("instant -money",
+				() => { agent.Money--; },
+				() => { });
+		}
+	}
 }
 
 public class OfWar : DeityDomain
@@ -334,6 +430,20 @@ public class OfWar : DeityDomain
 					self.Dislike(attack.Attacker, "killing allies");
 				break;
 		}
+	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		blessing.AddEffect("+AP regen",
+			() => { agent.APRegeneration += 2; },
+			() => { agent.APRegeneration -= 2; });
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		curse.AddEffect("-AP regen",
+			() => { agent.APRegeneration -= 1; },
+			() => { agent.APRegeneration += 1; });
 	}
 }
 

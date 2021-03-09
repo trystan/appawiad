@@ -18,7 +18,7 @@ public class TitleScene : CanvasLayer
 					
 				case (int)KeyList.B:
 					foreach (var deity in Globals.Deities)
-						deity.FavorPerTeam["player"] += 5;
+						deity.FavorPerTeam["player"] += 2;
 					GD.Print("paladin");
 					GetTree().ChangeScene("res://PaladinSetupScene.tscn");
 					break;

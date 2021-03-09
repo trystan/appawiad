@@ -44,6 +44,7 @@ public class Agent : Sprite
 	
 	public string DisplayName { get; set; }
 	
+	public List<StatusEffect> StatusEffects { get; set; } = new List<StatusEffect>();
 	public List<AgentTag> Tags { get; set; } = new List<AgentTag>();
 	public string Team { get; set; }
 	public Item Armor { get; set; }
@@ -80,5 +81,7 @@ public class Agent : Sprite
 	public void EndTurn()
 	{
 		AP += Math.Max(1, APRegeneration);
+		foreach (var effect in StatusEffects.ToArray())
+			effect.OnTurn(null, this);
 	}
 }

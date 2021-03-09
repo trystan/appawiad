@@ -113,13 +113,31 @@ public class PlayScene : Node2D
 			$"${_player.Money}",
 			"Armor: " + _player.Armor?.DisplayName ?? "-none",
 			"Weapon: " + _player.Weapon?.DisplayName ?? "-none",
+			"Effects:"
+		};
+		
+		if (_player.StatusEffects.Any())
+		{
+			foreach (var effect in _player.StatusEffects)
+			{
+				lines.Add(effect.Name);
+				foreach (var description in effect.Descriptions)
+					lines.Add(" * " + description);
+			}
+		}
+		else
+		{
+			lines.Add(" -none-");
+		}
+		
+		lines.AddRange(new [] {
 			"",
 			"[g] Here:",
 			_level.Items.FirstOrDefault(i => i.X == _player.X && i.Y == _player.Y)?.DisplayName ?? "-none-",
 			"",
 			"[table=2]",
 			"[cell][tab] Deity[/cell][cell]Favor[/cell]"
-		};
+		});
 		foreach (var deity in Globals.Deities)
 			lines.Add($"[cell]{deity.GetShortTitle()}[/cell][cell]{deity.PlayerFavor}[/cell]]");
 		lines.Add("[/table]");
@@ -327,7 +345,7 @@ public class MoveBy : ICommand
 			if (other.HP < 1)
 			{
 				agent.Messages.Add($"You kill the {other.DisplayName}");
-				other.Messages.Add($"You were killed by a {other.DisplayName}");
+				other.Messages.Add($"You were killed by a {agent.DisplayName}");
 				level.Agents.Remove(other);
 			}
 			else
@@ -396,6 +414,9 @@ public class PickupItem : ICommand
 public static class Globals
 {
 	public static Random Random { get; } = new Random();
+	
+	public static string TextColorGood { get; } = "#33ff33";
+	public static string TextColorBad { get; } = "#cc3333";
 	
 	public static List<Deity> Deities { get; set; } = new List<Deity>();
 	
@@ -517,6 +538,8 @@ public class Deity
 	public Dictionary<string,int> FavorPerTeam { get; set; } = new Dictionary<string,int>();
 	public int PlayerFavor => FavorPerTeam["player"];
 	
+	public float ChanceOfBlessing { get; set; } = 0.5f;
+	public float ChanceOfCurse { get; set; } = 0.5f;
 	public int StrengthOfLikes { get; set; } = 2;
 	public int StrengthOfDislikes { get; set; } = 2;
 	public bool AcceptsPrayers { get; set; } = true;
@@ -566,13 +589,42 @@ public class Deity
 			domain.OnEvent(this, e);
 	}
 	
+	public StatusEffect MakeBlessing(Level level, Agent agent)
+	{
+		var blessing = new StatusEffect() {
+			Name = $"[color={Globals.TextColorGood}]{Name}'s blessing[/color]",
+			TurnsRemaining = 25
+		};
+		Archetype.AddToBlessing(this, level, agent, blessing);
+		foreach (var domain in Domains)
+			domain.AddToBlessing(this, level, agent, blessing);
+		return blessing;
+	}
+	
+	public StatusEffect MakeCurse(Level level, Agent agent)
+	{
+		var curse = new StatusEffect() {
+			Name = $"[color={Globals.TextColorBad}]{Name}'s curse[/color]",
+			TurnsRemaining = 25
+		};
+		Archetype.AddToCurse(this, level, agent, curse);
+		foreach (var domain in Domains)
+			domain.AddToCurse(this, level, agent, curse);
+		return curse;
+	}
+	
 	public void Like(Agent agent, string what)
 	{
 		if (!FavorPerTeam.ContainsKey(agent.Team))
 			FavorPerTeam[agent.Team] = 0;
 		FavorPerTeam[agent.Team] += StrengthOfLikes;
-		agent.Messages.Add(Name + " likes " + what);
+		agent.Messages.Add($"[color={Globals.TextColorGood}]{Name} likes {what}[/color]");
 		GD.Print(Name + " likes team " + agent.Team + " because " + what);
+		
+		if (FavorPerTeam[agent.Team] > 10
+				&& agent.StatusEffects.Count < 2
+				&& Globals.Random.NextDouble() < ChanceOfBlessing)
+			MakeBlessing(null, agent).Begin(null, agent);
 	}
 	
 	public void Dislike(Agent agent, string what)
@@ -580,8 +632,13 @@ public class Deity
 		if (!FavorPerTeam.ContainsKey(agent.Team))
 			FavorPerTeam[agent.Team] = 0;
 		FavorPerTeam[agent.Team] -= StrengthOfDislikes;
-		agent.Messages.Add(Name + " dislikes " + what);
+		agent.Messages.Add($"[color={Globals.TextColorBad}]{Name} dislikes {what}[/color]");
 		GD.Print(Name + " dislikes team " + agent.Team + " because " + what);
+		
+		if (FavorPerTeam[agent.Team] < 1
+				&& agent.StatusEffects.Count < 3
+				&& Globals.Random.NextDouble() < ChanceOfBlessing)
+			MakeCurse(null, agent).Begin(null, agent);
 	}
 }
 
@@ -606,6 +663,14 @@ public abstract class DeityArchetype
 	public virtual void OnEvent(Deity self, IEvent e)
 	{
 	}
+	
+	public virtual void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+	}
+	
+	public virtual void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+	}
 }
 
 public abstract class DeityDomain
@@ -623,6 +688,14 @@ public abstract class DeityDomain
 	}
 	
 	public virtual void OnEvent(Deity self, IEvent e)
+	{
+	}
+	
+	public virtual void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+	}
+	
+	public virtual void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
 	}
 }
@@ -680,4 +753,43 @@ public class UsedItem : IEvent
 public class NextTurn : IEvent
 {
 	public Agent Player { get; set; }
+}
+
+public class StatusEffect
+{
+	public string Name { get; set; }
+	public int TurnsRemaining { get; set; }
+	public List<string> Descriptions { get; } = new List<string>();
+	public List<Action> BeginEffects { get; } = new List<Action>();
+	public List<Action> EndEffects { get; } = new List<Action>();
+	
+	public void AddEffect(string description, Action begin, Action end)
+	{
+		Descriptions.Add(description);
+		BeginEffects.Add(begin);
+		EndEffects.Add(end);
+	}
+	
+	public void Begin(Level level, Agent agent)
+	{
+		agent.StatusEffects.Add(this);
+		agent.Messages.Add("You feel " + Name);
+		foreach (var effect in BeginEffects)
+			effect();
+	}
+	
+	public void End(Level level, Agent agent)
+	{
+		agent.StatusEffects.Remove(this);
+		agent.Messages.Add("You no longer feel " + Name);
+		foreach (var effect in EndEffects)
+			effect();
+	}
+	
+	public void OnTurn(Level level, Agent agent)
+	{
+		TurnsRemaining--;
+		if (TurnsRemaining < 0)
+			End(level, agent);
+	}
 }
