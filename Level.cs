@@ -34,7 +34,7 @@ public class Level : Node2D
 	
 	public void Setup(int w, int h)
 	{
-		Tiles = new Tile[32,32];
+		Tiles = new Tile[w,h];
 		
 		for (var x = 0; x < Tiles.GetLength(0); x++)
 		{

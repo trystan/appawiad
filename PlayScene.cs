@@ -7,6 +7,7 @@ public class PlayScene : Node2D
 {
 	RichTextLabel _sidebar;
 	Control _deityPopup;
+	Camera2D _camera;
 	
 	Level _level;
 	Agent _player;
@@ -14,11 +15,12 @@ public class PlayScene : Node2D
 	
 	public override void _Ready()
 	{
-		_sidebar = (RichTextLabel)GetNode("CanvasLayer/Sidebar");
+		_sidebar = (RichTextLabel)GetNode("CanvasLayer/Sidebar/Text");
 		_deityPopup = (Control)GetNode("CanvasLayer/DeityPopup");
+		_camera = (Camera2D)GetNode("Camera2D");
 		
 		_level = (Level)GetNode("Level");
-		_level.Setup(20, 20);
+		_level.Setup(32, 32);
 		
 		var catalog = new Catalog();
 		
@@ -32,6 +34,8 @@ public class PlayScene : Node2D
 		_player = catalog.NewPlayer(3, 4);
 		_player.Messages.Add("Welcome!");
 		_level.Add(_player);
+		RemoveChild(_camera);
+		_player.AddChild(_camera);
 		
 		for (var i = 0; i < 32; i++)
 		{
