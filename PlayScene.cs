@@ -29,11 +29,7 @@ public class PlayScene : Node2D
 			_level.Add(catalog.NewItem(x, y));
 		}
 		
-		_player = new Agent(3, 4, 0, 9) {
-			Name = "player",
-			Team = "player",
-			Tags = new List<AgentTag> { AgentTag.Living }
-		};
+		_player = catalog.NewPlayer(3, 4);
 		_player.Messages.Add("Welcome!");
 		_level.Add(_player);
 		
@@ -83,7 +79,7 @@ public class PlayScene : Node2D
 				case (int)KeyList.Tab:
 					_deityPopup.Show();
 					foreach (var a in _level.Agents)
-						GD.Print($"{a.Name} {a.HP}/6 {a.AP}+{a.APRegeneration}");
+						GD.Print($"{a.DisplayName} {a.HP}/6 {a.AP}+{a.APRegeneration}");
 					break;
 					
 				case (int)KeyList.G:
@@ -108,7 +104,7 @@ public class PlayScene : Node2D
 		}
 		
 		var lines = new List<string> {
-			$"[@] {_player.Name}",
+			$"[@] {_player.DisplayName}",
 			$"HP {_player.HP}/6   AP {_player.AP}+{_player.APRegeneration}",
 			$"${_player.Money}",
 			"Armor: " + _player.Armor?.DisplayName ?? "-none",
@@ -174,11 +170,22 @@ public class PlayScene : Node2D
 
 public class Catalog
 {
+	PackedScene _agentScene;
 	PackedScene _itemScene;
 	
 	public Catalog()
 	{
+		_agentScene = (PackedScene)ResourceLoader.Load("res://Agent.tscn");
 		_itemScene = (PackedScene)ResourceLoader.Load("res://Item.tscn");
+	}
+	
+	public Agent NewPlayer(int x, int y)
+	{
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 9);
+		agent.DisplayName = "player";
+		agent.Team = "player";
+		agent.Tags = new List<AgentTag> { AgentTag.Living };
+		return agent;
 	}
 	
 	public Agent NewEnemy(int x, int y)
@@ -189,37 +196,52 @@ public class Catalog
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
 	
-	public Agent NewGobbo(int x, int y) => new Agent(x, y, 31, 5) {
-		Name = "gobbo",
-		Team = "gobbos",
-		Tags = new List<AgentTag> { AgentTag.Living }
-	};
+	public Agent NewGobbo(int x, int y)
+	{ 
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 31, 5);
+		agent.DisplayName = "gobbo";
+		agent.Team = "gobbos";
+		agent.Tags = new List<AgentTag> { AgentTag.Living };
+		return agent;
+	}
 	
-	public Agent NewSkeleton(int x, int y) => new Agent(x, y, 37, 5) {
-		Name = "skeleton",
-		Team = "skeleton",
-		Tags = new List<AgentTag> { AgentTag.Undead }
-	};
+	public Agent NewSkeleton(int x, int y)
+	{ 
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 37, 5);
+		agent.DisplayName = "skeleton";
+		agent.Team = "skeleton";
+		agent.Tags = new List<AgentTag> { AgentTag.Undead };
+		return agent;
+	}
 	
-	public Agent NewPig(int x, int y) => new Agent(x, y, 2, 15) {
-		Name = "pig",
-		Team = "beasts",
-		Tags = new List<AgentTag> { AgentTag.Living }
-	};
+	public Agent NewPig(int x, int y)
+	{ 
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 15);
+		agent.DisplayName = "pig";
+		agent.Team = "beasts";
+		agent.Tags = new List<AgentTag> { AgentTag.Living };
+		return agent;
+	}
 	
-	public Agent NewSpider(int x, int y) => new Agent(x, y, 2, 14) {
-		Name = "spider",
-		Team = "critters",
-		Tags = new List<AgentTag> { AgentTag.Living },
-		HP = 3,
-		APRegeneration = 10
-	};
+	public Agent NewSpider(int x, int y)
+	{ 
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 14);
+		agent.DisplayName = "spider";
+		agent.Team = "critters";
+		agent.Tags = new List<AgentTag> { AgentTag.Living };
+		agent.HP = 3;
+		agent.APRegeneration = 10;
+		return agent;
+	}
 	
-	public Agent NewTree(int x, int y) => new Agent(x, y, 0, 26) {
-		Name = "tree",
-		Team = "plants",
-		Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Stationary }
-	};
+	public Agent NewTree(int x, int y)
+	{ 
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 26);
+		agent.DisplayName = "tree";
+		agent.Team = "plants";
+		agent.Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Stationary };
+		return agent;
+	}
 	
 	public Item NewItem(int x, int y)
 	{
@@ -300,14 +322,14 @@ public class MoveBy : ICommand
 			other.TakeDamage(1);
 			if (other.HP < 1)
 			{
-				agent.Messages.Add($"You kill the {other.Name}");
-				other.Messages.Add("You were killed by a {other.Name}");
+				agent.Messages.Add($"You kill the {other.DisplayName}");
+				other.Messages.Add("You were killed by a {other.DisplayName}");
 				level.Agents.Remove(other);
 			}
 			else
 			{
-				agent.Messages.Add($"You deal 1 damage to the {other.Name}");
-				other.Messages.Add($"You take 1 damage from the {agent.Name}");
+				agent.Messages.Add($"You deal 1 damage to the {other.DisplayName}");
+				other.Messages.Add($"You take 1 damage from the {agent.DisplayName}");
 			}
 			Globals.OnEvent(new DidAttack(agent, other));
 		}
@@ -543,7 +565,7 @@ public class Deity
 		if (agent.Team == "player")
 			PlayerFavor += StrengthOfLikes;
 		agent.Messages.Add(Name + " likes " + what);
-		GD.Print(Name + " likes " + agent.Name);
+		GD.Print(Name + " likes " + agent.DisplayName);
 	}
 	
 	public void Dislike(Agent agent, string what)
@@ -551,7 +573,7 @@ public class Deity
 		if (agent.Team == "player")
 			PlayerFavor -= StrengthOfDislikes;
 		agent.Messages.Add(Name + " dislikes " + what);
-		GD.Print(Name + " dislikes " + agent.Name);
+		GD.Print(Name + " dislikes " + agent.DisplayName);
 	}
 }
 
@@ -614,48 +636,6 @@ public class Tile
 public enum AgentTag
 {
 	Living, Undead, Stationary
-}
-
-public class Agent
-{
-	public string Name { get; set; }
-	
-	public List<AgentTag> Tags { get; set; } = new List<AgentTag>();
-	public string Team { get; set; }
-	public Item Armor { get; set; }
-	public Item Weapon { get; set; }
-	public bool IsBusy { get; set; }
-	
-	public int X { get; set; }
-	public int Y { get; set; }
-	
-	public int SpriteX { get; set; }
-	public int SpriteY { get; set; }
-	
-	public int HP { get; set; } = 6;
-	public int AP { get; set; } = 10;
-	public int APRegeneration { get; set; } = 10;
-	public int Money { get; set; }
-	
-	public List<string> Messages { get; set; } = new List<string>();
-	
-	public Agent(int x, int y, int spriteX, int spriteY)
-	{
-		X = x;
-		Y = y;
-		SpriteX = spriteX;
-		SpriteY = spriteY;
-	}
-	
-	public void TakeDamage(int amount)
-	{
-		HP -= amount;
-	}
-	
-	public void EndTurn()
-	{
-		AP += Math.Max(1, APRegeneration);
-	}
 }
 
 public enum ItemType

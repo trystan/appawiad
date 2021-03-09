@@ -53,7 +53,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AgentView.cs" />
+    <Compile Include="Agent.cs" />
     <Compile Include="Deities.cs" />
     <Compile Include="DeityPopup.cs" />
     <Compile Include="Item.cs" />

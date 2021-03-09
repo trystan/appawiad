@@ -6,7 +6,6 @@ using System.Linq;
 public class Level : Node2D
 {
 	TileMap _tileMap;
-	PackedScene _agentView;
 	
 	public Tile[,] Tiles { get; private set; }
 	public List<Agent> Agents { get; set; } = new List<Agent>();
@@ -14,7 +13,6 @@ public class Level : Node2D
 	
 	public override void _Ready()
 	{
-		_agentView = (PackedScene)ResourceLoader.Load("res://AgentView.tscn");
 		_tileMap = (TileMap)GetNode("TileMap");
 	}
 	
@@ -31,6 +29,7 @@ public class Level : Node2D
 	
 	public override void _Process(float delta)
 	{
+		Agents.RemoveAll(a => a.HP < 1);
 	}
 	
 	public void Setup(int w, int h)
@@ -77,9 +76,12 @@ public class Level : Node2D
 	public void Add(Agent agent)
 	{
 		Agents.Add(agent);
-		
-		var view = (AgentView)_agentView.Instance();
-		view.Agent = agent;
-		AddChild(view);
+		AddChild(agent);
+	}
+	
+	public void Remove(Agent agent)
+	{
+		Agents.Remove(agent);
+		RemoveChild(agent);
 	}
 }
