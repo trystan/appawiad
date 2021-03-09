@@ -60,6 +60,9 @@ public class Agent : Sprite
 	public int HP { get; set; } = 6;
 	public int HPMax { get; set; } = 6;
 	
+	public int ATK { get; set; } = 3;
+	public int DEF { get; set; } = 3;
+	
 	public int AP { get; set; } = 10;
 	public int APRegeneration { get; set; } = 10;
 	public int Money { get; set; }

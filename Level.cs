@@ -83,5 +83,6 @@ public class Level : Node2D
 	{
 		Agents.Remove(agent);
 		RemoveChild(agent);
+		agent.QueueFree();
 	}
 }

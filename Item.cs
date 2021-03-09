@@ -14,6 +14,9 @@ public class Item : Sprite
 	public ItemType Type { get; set; }
 	public string MadeOf { get; set; }
 	
+	public int ATK { get; set; } = 3;
+	public int DEF { get; set; } = 3;
+	
 	public Item Setup(int x, int y, int spriteX, int spriteY)
 	{
 		X = x;

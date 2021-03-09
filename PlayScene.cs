@@ -113,8 +113,8 @@ public class PlayScene : Node2D
 			$"${_player.Money}",
 			"Armor: " + (_player.Armor?.DisplayName ?? "-none-"),
 			"Weapon: " + (_player.Weapon?.DisplayName ?? "-none-"),
-			"ATK: 2d4+0",
-			"DEF: 2d4+0",
+			$"ATK: {_player.ATK}",
+			$"DEF: {_player.DEF}",
 			"Effects:"
 		};
 		
@@ -208,6 +208,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 9);
 		agent.HP = 20;
 		agent.HPMax = 20;
+		agent.ATK = 3;
+		agent.DEF = 3;
 		agent.DisplayName = "player";
 		agent.Team = "player";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -227,6 +229,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 31, 5);
 		agent.HP = 6;
 		agent.HPMax = 6;
+		agent.ATK = 2;
+		agent.DEF = 2;
 		agent.DisplayName = "gobbo";
 		agent.Team = "gobbos";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -238,6 +242,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 37, 5);
 		agent.HP = 3;
 		agent.HPMax = 3;
+		agent.ATK = 2;
+		agent.DEF = 2;
 		agent.DisplayName = "skeleton";
 		agent.Team = "skeleton";
 		agent.Tags = new List<AgentTag> { AgentTag.Undead };
@@ -247,8 +253,10 @@ public class Catalog
 	public Agent NewPig(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 15);
-		agent.HP = 3;
-		agent.HPMax = 3;
+		agent.HP = 8;
+		agent.HPMax = 8;
+		agent.ATK = 1;
+		agent.DEF = 1;
 		agent.DisplayName = "pig";
 		agent.Team = "beasts";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -260,6 +268,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 14);
 		agent.HP = 2;
 		agent.HPMax = 2;
+		agent.ATK = 2;
+		agent.DEF = 2;
 		agent.DisplayName = "spider";
 		agent.Team = "critters";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -273,6 +283,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 26);
 		agent.HP = 12;
 		agent.HPMax = 12;
+		agent.ATK = 0;
+		agent.DEF = 6;
 		agent.DisplayName = "tree";
 		agent.Team = "plants";
 		agent.Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Stationary };
@@ -293,6 +305,8 @@ public class Catalog
 		item.DisplayName = "Sword";
 		item.Type = ItemType.Weapon;
 		item.MadeOf = "metal";
+		item.ATK = 2;
+		item.DEF = 0;
 		return item;
 	}
 	
@@ -302,6 +316,8 @@ public class Catalog
 		item.DisplayName = "Axe";
 		item.Type = ItemType.Weapon;
 		item.MadeOf = "metal";
+		item.ATK = 2;
+		item.DEF = 0;
 		return item;
 	}
 	
@@ -311,6 +327,8 @@ public class Catalog
 		item.DisplayName = "Club";
 		item.Type = ItemType.Weapon;
 		item.MadeOf = "wood";
+		item.ATK = 2;
+		item.DEF = 0;
 		return item;
 	}
 	
@@ -320,6 +338,8 @@ public class Catalog
 		item.DisplayName = "Spear";
 		item.Type = ItemType.Weapon;
 		item.MadeOf = "wood";
+		item.ATK = 2;
+		item.DEF = 0;
 		return item;
 	}
 }
@@ -360,11 +380,12 @@ public class MoveBy : ICommand
 				effect.ParticipateAsAttacker(attack);
 			foreach (var effect in other.StatusEffects)
 				effect.ParticipateAsDefender(attack);
+			attack.DoIt();
 			
 			other.TakeDamage(attack);
 			
-			agent.Messages.Add($"You deal {attack.TotalDamage} damage to the {other.DisplayName}");
-			other.Messages.Add($"You take {attack.TotalDamage} damage from the {agent.DisplayName}");
+			agent.Messages.Add($"You do {attack.TotalAttack}/{attack.TotalDefend}={attack.TotalDamage} damage to the {other.DisplayName}");
+			other.Messages.Add($"You take {attack.TotalAttack}/{attack.TotalDefend}={attack.TotalDamage} damage from the {agent.DisplayName}");
 			
 			if (other.HP < 1)
 			{
@@ -387,13 +408,28 @@ public class Attack
 {
 	public Agent Attacker { get; set; }
 	public Agent Defender { get; set; }
-	public int TotalDamage { get; set; }
+	public int AttackBonus { get; set; }
+	public int DefendBonus { get; set; }
+	public int TotalAttack { get; private set; }
+	public int TotalDefend { get; private set; }
+	public int TotalDamage { get; private set; }
 	
 	public Attack(Agent attacker, Agent attacked)
 	{
 		Attacker = attacker;
 		Defender = attacked;
-		TotalDamage = Globals.Random.Next(1,5) + Globals.Random.Next(1,5);
+	}
+	
+	public void DoIt()
+	{
+		TotalAttack = Attacker.ATK + AttackBonus;
+		TotalDefend = Defender.DEF + DefendBonus;
+		var total = (float)TotalAttack / TotalDefend;
+		var hits = (int)total;
+		var bonusChance = total - hits;
+		if (Globals.Random.NextDouble() < bonusChance)
+			hits++;
+		TotalDamage = hits;
 	}
 }
 
@@ -425,6 +461,8 @@ public class PickupItem : ICommand
 	
 	public void Pickup(Level level, Agent agent, Item item)
 	{
+		agent.ATK += item.ATK;
+		agent.DEF += item.DEF;
 		switch (item.Type)
 		{
 			case ItemType.Weapon: agent.Weapon = item; break;
@@ -436,6 +474,8 @@ public class PickupItem : ICommand
 	
 	public void Drop(Level level, Agent agent, Item item)
 	{
+		agent.ATK -= item.ATK;
+		agent.DEF -= item.DEF;
 		item.X = agent.X;
 		item.Y = agent.Y;
 		level.Add(item);
@@ -631,6 +671,27 @@ public class Deity
 		Archetype.AddToBlessing(this, level, agent, blessing);
 		foreach (var domain in Domains)
 			domain.AddToBlessing(this, level, agent, blessing);
+		
+		foreach (var deity in Globals.Deities)
+		{
+			if (deity.Likes.Contains(GetShortTitle()))
+			{
+				if (!deity.FavorPerTeam.ContainsKey(agent.Team))
+					deity.FavorPerTeam[agent.Team] = 0;
+				blessing.AddEffect($"instant +favor of {deity.Name}",
+					() => deity.FavorPerTeam[agent.Team] += 2,
+					() => { });
+			}
+			if (deity.Dislikes.Contains(GetShortTitle()))
+			{
+				if (!deity.FavorPerTeam.ContainsKey(agent.Team))
+					deity.FavorPerTeam[agent.Team] = 0;
+				blessing.AddEffect($"instant -favor of {deity.Name}",
+					() => deity.FavorPerTeam[agent.Team] -= 3,
+					() => { });
+			}
+		}
+		
 		return blessing;
 	}
 	
@@ -643,6 +704,27 @@ public class Deity
 		Archetype.AddToCurse(this, level, agent, curse);
 		foreach (var domain in Domains)
 			domain.AddToCurse(this, level, agent, curse);
+			
+		foreach (var deity in Globals.Deities)
+		{
+			if (deity.Likes.Contains(GetShortTitle()))
+			{
+				if (!deity.FavorPerTeam.ContainsKey(agent.Team))
+					deity.FavorPerTeam[agent.Team] = 0;
+				curse.AddEffect($"instant -favor of {deity.Name}",
+					() => deity.FavorPerTeam[agent.Team] -= 3,
+					() => { });
+			}
+			if (deity.Dislikes.Contains(GetShortTitle()))
+			{
+				if (!deity.FavorPerTeam.ContainsKey(agent.Team))
+					deity.FavorPerTeam[agent.Team] = 0;
+				curse.AddEffect($"instant +favor of {deity.Name}",
+					() => deity.FavorPerTeam[agent.Team] += 3,
+					() => { });
+			}
+		}
+		
 		return curse;
 	}
 	
