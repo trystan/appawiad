@@ -83,7 +83,7 @@ public class PlayScene : Node2D
 				case (int)KeyList.Tab:
 					_deityPopup.Show();
 					foreach (var a in _level.Agents)
-						GD.Print($"{a.DisplayName} {a.HP}/6 {a.AP}+{a.APRegeneration}");
+						GD.Print($"{a.DisplayName} {a.HP}/{a.HPMax} {a.AP}+{a.APRegeneration}");
 					break;
 					
 				case (int)KeyList.G:
@@ -109,10 +109,12 @@ public class PlayScene : Node2D
 		
 		var lines = new List<string> {
 			$"[@] {_player.DisplayName}",
-			$"HP {_player.HP}/6   AP {_player.AP}+{_player.APRegeneration}",
+			$"HP {_player.HP}/{_player.HPMax}   AP {_player.AP} (+{_player.APRegeneration})",
 			$"${_player.Money}",
-			"Armor: " + _player.Armor?.DisplayName ?? "-none",
-			"Weapon: " + _player.Weapon?.DisplayName ?? "-none",
+			"Armor: " + (_player.Armor?.DisplayName ?? "-none-"),
+			"Weapon: " + (_player.Weapon?.DisplayName ?? "-none-"),
+			"ATK: 2d4+0",
+			"DEF: 2d4+0",
 			"Effects:"
 		};
 		
@@ -122,7 +124,7 @@ public class PlayScene : Node2D
 			{
 				lines.Add(effect.Name);
 				foreach (var description in effect.Descriptions)
-					lines.Add(" * " + description);
+					lines.Add(" " + description);
 			}
 		}
 		else
@@ -162,7 +164,7 @@ public class PlayScene : Node2D
 			{
 				_level.Agents.ForEach(a => a.EndTurn());
 				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
-				Globals.OnEvent(new NextTurn { Player = _player });
+				Globals.OnEvent(new NextTurn { Level = _level, Player = _player });
 			}
 			
 			var agent = _level.Agents[0];
@@ -204,6 +206,8 @@ public class Catalog
 	public Agent NewPlayer(int x, int y)
 	{
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 9);
+		agent.HP = 20;
+		agent.HPMax = 20;
 		agent.DisplayName = "player";
 		agent.Team = "player";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -221,6 +225,8 @@ public class Catalog
 	public Agent NewGobbo(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 31, 5);
+		agent.HP = 6;
+		agent.HPMax = 6;
 		agent.DisplayName = "gobbo";
 		agent.Team = "gobbos";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -230,6 +236,8 @@ public class Catalog
 	public Agent NewSkeleton(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 37, 5);
+		agent.HP = 3;
+		agent.HPMax = 3;
 		agent.DisplayName = "skeleton";
 		agent.Team = "skeleton";
 		agent.Tags = new List<AgentTag> { AgentTag.Undead };
@@ -239,6 +247,8 @@ public class Catalog
 	public Agent NewPig(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 15);
+		agent.HP = 3;
+		agent.HPMax = 3;
 		agent.DisplayName = "pig";
 		agent.Team = "beasts";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -248,6 +258,8 @@ public class Catalog
 	public Agent NewSpider(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 14);
+		agent.HP = 2;
+		agent.HPMax = 2;
 		agent.DisplayName = "spider";
 		agent.Team = "critters";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -259,6 +271,8 @@ public class Catalog
 	public Agent NewTree(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 26);
+		agent.HP = 12;
+		agent.HPMax = 12;
 		agent.DisplayName = "tree";
 		agent.Team = "plants";
 		agent.Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Stationary };
@@ -341,17 +355,22 @@ public class MoveBy : ICommand
 		var other = level.Agents.FirstOrDefault(a => a.X == nextX && a.Y == nextY);
 		if (other != null)
 		{
-			other.TakeDamage(1);
+			var attack = new Attack(agent, other);
+			foreach (var effect in agent.StatusEffects)
+				effect.ParticipateAsAttacker(attack);
+			foreach (var effect in other.StatusEffects)
+				effect.ParticipateAsDefender(attack);
+			
+			other.TakeDamage(attack);
+			
+			agent.Messages.Add($"You deal {attack.TotalDamage} damage to the {other.DisplayName}");
+			other.Messages.Add($"You take {attack.TotalDamage} damage from the {agent.DisplayName}");
+			
 			if (other.HP < 1)
 			{
 				agent.Messages.Add($"You kill the {other.DisplayName}");
 				other.Messages.Add($"You were killed by a {agent.DisplayName}");
 				level.Agents.Remove(other);
-			}
-			else
-			{
-				agent.Messages.Add($"You deal 1 damage to the {other.DisplayName}");
-				other.Messages.Add($"You take 1 damage from the {agent.DisplayName}");
 			}
 			Globals.OnEvent(new DidAttack(agent, other));
 		}
@@ -361,6 +380,20 @@ public class MoveBy : ICommand
 			agent.Y = nextY;
 			agent.IsBusy = true;
 		}
+	}
+}
+
+public class Attack
+{
+	public Agent Attacker { get; set; }
+	public Agent Defender { get; set; }
+	public int TotalDamage { get; set; }
+	
+	public Attack(Agent attacker, Agent attacked)
+	{
+		Attacker = attacker;
+		Defender = attacked;
+		TotalDamage = Globals.Random.Next(1,5) + Globals.Random.Next(1,5);
 	}
 }
 
@@ -563,9 +596,9 @@ public class Deity
 	
 	public void Finalize(IEnumerable<Deity> deities)
 	{
-		AcceptsPrayers = Globals.Random.NextDouble() < 0.9f;
-		AcceptsDonations = Globals.Random.NextDouble() < 0.9f;
-		AcceptsSacrafices = Globals.Random.NextDouble() < 0.1f;
+		AcceptsPrayers = Globals.Random.NextDouble() < 0.8f;
+		AcceptsDonations = Globals.Random.NextDouble() < 0.8f;
+		AcceptsSacrafices = Globals.Random.NextDouble() < 0.2f;
 		
 		Archetype.Finalize(this, deities);
 		foreach (var domain in Domains)
@@ -621,10 +654,17 @@ public class Deity
 		agent.Messages.Add($"[color={Globals.TextColorGood}]{Name} likes {what}[/color]");
 		GD.Print(Name + " likes team " + agent.Team + " because " + what);
 		
-		if (FavorPerTeam[agent.Team] > 10
+		if (FavorPerTeam[agent.Team] > 4
 				&& agent.StatusEffects.Count < 2
 				&& Globals.Random.NextDouble() < ChanceOfBlessing)
-			MakeBlessing(null, agent).Begin(null, agent);
+		{
+			var effect = MakeBlessing(null, agent);
+			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
+			{
+				FavorPerTeam[agent.Team] -= 3;
+				effect.Begin(null, agent);
+			}
+		}
 	}
 	
 	public void Dislike(Agent agent, string what)
@@ -638,7 +678,14 @@ public class Deity
 		if (FavorPerTeam[agent.Team] < 1
 				&& agent.StatusEffects.Count < 3
 				&& Globals.Random.NextDouble() < ChanceOfBlessing)
-			MakeCurse(null, agent).Begin(null, agent);
+		{
+			var effect = MakeCurse(null, agent);
+			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
+			{
+				FavorPerTeam[agent.Team] = Math.Min(FavorPerTeam[agent.Team] + 2, 0);
+				effect.Begin(null, agent);
+			}
+		}
 	}
 }
 
@@ -732,6 +779,7 @@ public class DidAttack : IEvent
 {
 	public Agent Attacker { get; set; }
 	public Agent Attacked { get; set; }
+	
 	public DidAttack(Agent attacker, Agent attacked)
 	{
 		Attacker = attacker;
@@ -752,6 +800,7 @@ public class UsedItem : IEvent
 
 public class NextTurn : IEvent
 {
+	public Level Level { get; set; }
 	public Agent Player { get; set; }
 }
 
@@ -762,12 +811,26 @@ public class StatusEffect
 	public List<string> Descriptions { get; } = new List<string>();
 	public List<Action> BeginEffects { get; } = new List<Action>();
 	public List<Action> EndEffects { get; } = new List<Action>();
+	public List<Action<Attack>> AttackEffects { get; } = new List<Action<Attack>>();
+	public List<Action<Attack>> DefendEffects { get; } = new List<Action<Attack>>();
 	
 	public void AddEffect(string description, Action begin, Action end)
 	{
 		Descriptions.Add(description);
 		BeginEffects.Add(begin);
 		EndEffects.Add(end);
+	}
+	
+	public void AddAttackEffect(string description, Action<Attack> effect)
+	{
+		Descriptions.Add(description);
+		AttackEffects.Add(effect);
+	}
+	
+	public void AddDefendEffect(string description, Action<Attack> effect)
+	{
+		Descriptions.Add(description);
+		DefendEffects.Add(effect);
 	}
 	
 	public void Begin(Level level, Agent agent)
@@ -791,5 +854,17 @@ public class StatusEffect
 		TurnsRemaining--;
 		if (TurnsRemaining < 0)
 			End(level, agent);
+	}
+	
+	public void ParticipateAsAttacker(Attack attack)
+	{
+		foreach (var effect in AttackEffects)
+			effect(attack);
+	}
+	
+	public void ParticipateAsDefender(Attack attack)
+	{
+		foreach (var effect in DefendEffects)
+			effect(attack);
 	}
 }

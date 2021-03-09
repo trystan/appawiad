@@ -58,6 +58,8 @@ public class Agent : Sprite
 	public int SpriteY { get; set; }
 	
 	public int HP { get; set; } = 6;
+	public int HPMax { get; set; } = 6;
+	
 	public int AP { get; set; } = 10;
 	public int APRegeneration { get; set; } = 10;
 	public int Money { get; set; }
@@ -73,9 +75,9 @@ public class Agent : Sprite
 		return this;
 	}
 	
-	public void TakeDamage(int amount)
+	public void TakeDamage(Attack attack)
 	{
-		HP -= amount;
+		HP -= Math.Max(0, attack.TotalDamage);
 	}
 	
 	public void EndTurn()
