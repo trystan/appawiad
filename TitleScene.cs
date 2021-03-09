@@ -11,21 +11,21 @@ public class TitleScene : CanvasLayer
 			{
 				case (int)KeyList.A:
 					foreach (var deity in Globals.Deities)
-						deity.PlayerFavor += 20;
+						deity.FavorPerTeam["player"] += 20;
 					GD.Print("priest");
 					GetTree().ChangeScene("res://PlayScene.tscn");
 					break;
 					
 				case (int)KeyList.B:
 					foreach (var deity in Globals.Deities)
-						deity.PlayerFavor += 5;
+						deity.FavorPerTeam["player"] += 5;
 					GD.Print("paladin");
 					GetTree().ChangeScene("res://PaladinSetupScene.tscn");
 					break;
 					
 				case (int)KeyList.C:
 					foreach (var deity in Globals.Deities)
-						deity.PlayerFavor = Globals.Random.Next(-5,6);
+						deity.FavorPerTeam["player"] = Globals.Random.Next(-5,6);
 					GD.Print("athiest");
 					GetTree().ChangeScene("res://PlayScene.tscn");
 					break;

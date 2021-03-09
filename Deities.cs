@@ -28,7 +28,8 @@ public class Chaotic : DeityArchetype
 		switch (e)
 		{
 			case NextTurn next:
-				self.PlayerFavor += Globals.Random.Next(5) - Globals.Random.Next(5);
+				foreach (var key in self.FavorPerTeam.Keys.ToArray())
+					self.FavorPerTeam[key] += Globals.Random.Next(5) - Globals.Random.Next(5);
 				break;
 				
 			case DidAttack attack:
@@ -146,6 +147,7 @@ public class OfDeath : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.FavorPerTeam["undead"] += 50;
 		self.AcceptsSacrafices = true;
 		likesKillingLiving = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
@@ -198,16 +200,18 @@ public class OfHealth : DeityDomain
 					if (self.PlayerFavor > turn.Player.HP * 5
 						&& Globals.Random.Next(10) < turn.Player.HP)
 					{
-						self.PlayerFavor--;
-						turn.Player.HP++;
-						turn.Player.Messages.Add($"{self.Name} healed you");
+//						TODO
+//						self.PlayerFavor--;
+//						turn.Player.HP++;
+//						turn.Player.Messages.Add($"{self.Name} healed you");
 					}
 					if (self.PlayerFavor > turn.Player.HP * 5
 						&& Globals.Random.Next(20) < turn.Player.AP)
 					{
-						self.PlayerFavor--;
-						turn.Player.AP += 4;
-						turn.Player.Messages.Add($"{self.Name} has given you a boost of speed");
+//						TODO
+//						self.PlayerFavor--;
+//						turn.Player.AP += 4;
+//						turn.Player.Messages.Add($"{self.Name} has given you a boost of speed");
 					}
 				}
 				break;
@@ -276,9 +280,10 @@ public class OfCommerce : DeityDomain
 					&& self.PlayerFavor > turn.Player.Money
 					&& Globals.Random.Next(50) < turn.Player.Money)
 				{
-					self.PlayerFavor--;
-					turn.Player.Money++;
-					turn.Player.Messages.Add($"{self.Name} gave you money");
+//					TODO
+//					self.PlayerFavor--;
+//					turn.Player.Money++;
+//					turn.Player.Messages.Add($"{self.Name} gave you money");
 				}
 				break;
 		}
@@ -314,10 +319,11 @@ public class OfWar : DeityDomain
 					&& self.PlayerFavor > 10
 					&& turn.Player.APRegeneration < 12)
 				{
-					turn.Player.APRegeneration++;
-					self.PlayerFavor -= 10;
-					turn.Player.Messages.Add($"You feel faster.");
-					turn.Player.Messages.Add($"{self.Name} has improved your AP regeneration.");
+//					TODO
+//					turn.Player.APRegeneration++;
+//					self.PlayerFavor -= 10;
+//					turn.Player.Messages.Add($"You feel faster.");
+//					turn.Player.Messages.Add($"{self.Name} has improved your AP regeneration.");
 				}
 				break;
 				
@@ -356,6 +362,7 @@ public class OfAgriculture : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.FavorPerTeam["plants"] += 20;
 	}
 }
 
@@ -430,6 +437,7 @@ public class OfForests : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		self.FavorPerTeam["plants"] += 40;
 		likesUsingWood = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		if (likesUsingWood)
 			self.Likes.Add("using wooden items");

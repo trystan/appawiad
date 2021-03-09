@@ -327,7 +327,7 @@ public class MoveBy : ICommand
 			if (other.HP < 1)
 			{
 				agent.Messages.Add($"You kill the {other.DisplayName}");
-				other.Messages.Add("You were killed by a {other.DisplayName}");
+				other.Messages.Add($"You were killed by a {other.DisplayName}");
 				level.Agents.Remove(other);
 			}
 			else
@@ -484,6 +484,9 @@ public static class Globals
 				Archetype = archetypes[Random.Next(archetypes.Count)]
 			};
 			archetypes.Remove(deity.Archetype);
+			deity.FavorPerTeam["player"] = 0;
+			deity.FavorPerTeam["undead"] = 0;
+			deity.FavorPerTeam["plants"] = 0;
 			
 			while (domains.Any() && deity.Domains.Count < deity.Archetype.NumberOfDomains)
 			{
@@ -511,7 +514,8 @@ public class Deity
 	public List<DeityDomain> Domains { get; set; } = new List<DeityDomain>();
 	public List<string> Likes { get; set; } = new List<string>();
 	public List<string> Dislikes { get; set; } = new List<string>();
-	public int PlayerFavor { get; set; } = 0;
+	public Dictionary<string,int> FavorPerTeam { get; set; } = new Dictionary<string,int>();
+	public int PlayerFavor => FavorPerTeam["player"];
 	
 	public int StrengthOfLikes { get; set; } = 2;
 	public int StrengthOfDislikes { get; set; } = 2;
@@ -553,8 +557,6 @@ public class Deity
 			Likes.Remove(thing);
 			Dislikes.Remove(thing);
 		}
-		
-		PlayerFavor += StrengthOfLikes - StrengthOfDislikes;
 	}
 	
 	public void OnEvent(IEvent e)
@@ -566,18 +568,20 @@ public class Deity
 	
 	public void Like(Agent agent, string what)
 	{
-		if (agent.Team == "player")
-			PlayerFavor += StrengthOfLikes;
+		if (!FavorPerTeam.ContainsKey(agent.Team))
+			FavorPerTeam[agent.Team] = 0;
+		FavorPerTeam[agent.Team] += StrengthOfLikes;
 		agent.Messages.Add(Name + " likes " + what);
-		GD.Print(Name + " likes " + agent.DisplayName);
+		GD.Print(Name + " likes team " + agent.Team + " because " + what);
 	}
 	
 	public void Dislike(Agent agent, string what)
 	{
-		if (agent.Team == "player")
-			PlayerFavor -= StrengthOfDislikes;
+		if (!FavorPerTeam.ContainsKey(agent.Team))
+			FavorPerTeam[agent.Team] = 0;
+		FavorPerTeam[agent.Team] -= StrengthOfDislikes;
 		agent.Messages.Add(Name + " dislikes " + what);
-		GD.Print(Name + " dislikes " + agent.DisplayName);
+		GD.Print(Name + " dislikes team " + agent.Team + " because " + what);
 	}
 }
 

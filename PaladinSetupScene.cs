@@ -49,15 +49,15 @@ public class PaladinSetupScene : CanvasLayer
 			if (_choices.ContainsKey(key.Unicode))
 			{
 				var deity = _choices[key.Unicode];
-				deity.PlayerFavor += 80;
+				deity.FavorPerTeam["player"] += 80;
 				var title = deity.GetShortTitle();
 				
 				foreach (var other in Globals.Deities)
 				{
 					if (other.Likes.Contains(title))
-						other.PlayerFavor += 10;
+						deity.FavorPerTeam["player"] += 10;
 					if (other.Dislikes.Contains(title))
-						other.PlayerFavor -= 10;
+						deity.FavorPerTeam["player"] -= 10;
 				}
 				
 				GetTree().ChangeScene("res://PlayScene.tscn");
