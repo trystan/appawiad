@@ -40,7 +40,7 @@ public class Level : Node2D
 		{
 			for (var y = 0; y < Tiles.GetLength(1); y++)
 			{
-				Tiles[x,y] = Globals.Random.NextDouble() < 0.1 ? Tile.Wall : Tile.Floor;
+				Tiles[x,y] = Globals.Random.NextDouble() < 0.2 ? Tile.Wall : Tile.Floor;
 			}
 		}
 		

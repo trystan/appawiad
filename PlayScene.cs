@@ -6,7 +6,9 @@ using System.Collections.Generic;
 public class PlayScene : Node2D
 {
 	RichTextLabel _sidebar;
-	Control _deityPopup;
+	DeityPopup _deityPopup;
+	CharacterPopup _characterPopup;
+	HelpPopup _helpPopup;
 	Camera2D _camera;
 	
 	Level _level;
@@ -16,7 +18,10 @@ public class PlayScene : Node2D
 	public override void _Ready()
 	{
 		_sidebar = (RichTextLabel)GetNode("CanvasLayer/Sidebar/Text");
-		_deityPopup = (Control)GetNode("CanvasLayer/DeityPopup");
+		_deityPopup = (DeityPopup)GetNode("CanvasLayer/DeityPopup");
+		_characterPopup = (CharacterPopup)GetNode("CanvasLayer/CharacterPopup");
+		_helpPopup = (HelpPopup)GetNode("CanvasLayer/HelpPopup");
+		
 		_camera = (Camera2D)GetNode("Camera2D");
 		
 		_level = (Level)GetNode("Level");
@@ -24,10 +29,15 @@ public class PlayScene : Node2D
 		
 		var catalog = new Catalog();
 		
-		for (var i = 0; i < 8; i++)
+		for (var i = 0; i < 16; i++)
 		{
-			var x = Globals.Random.Next(32);
-			var y = Globals.Random.Next(32);
+			var x = -1;
+			var y = -1;
+			while (_level.GetTile(x, y).BlocksMovement)
+			{
+				x = Globals.Random.Next(32);
+				y = Globals.Random.Next(32);
+			}
 			_level.Add(catalog.NewItem(x, y));
 		}
 		
@@ -39,8 +49,13 @@ public class PlayScene : Node2D
 		
 		for (var i = 0; i < 32; i++)
 		{
-			var x = Globals.Random.Next(32);
-			var y = Globals.Random.Next(32);
+			var x = -1;
+			var y = -1;
+			while (_level.GetTile(x, y).BlocksMovement)
+			{
+				x = Globals.Random.Next(32);
+				y = Globals.Random.Next(32);
+			}
 			_level.Add(catalog.NewEnemy(x, y));
 		}
 	}
@@ -73,7 +88,10 @@ public class PlayScene : Node2D
 	
 	public override void _UnhandledInput(InputEvent e)
 	{
-		if (_player == null || _deityPopup.Visible)
+		if (_player == null
+				|| _deityPopup.Visible
+				|| _characterPopup.Visible
+				|| _helpPopup.Visible)
 			return;
 		
 		if (e is InputEventKey key && key.Pressed)
@@ -84,6 +102,14 @@ public class PlayScene : Node2D
 					_deityPopup.Show();
 					foreach (var a in _level.Agents)
 						GD.Print($"{a.DisplayName} {a.HP}/{a.HPMax} {a.AP}+{a.APRegeneration}");
+					break;
+				
+				case (int)KeyList.C:
+					_characterPopup.Show(_player);
+					break;
+				
+				case (int)KeyList.H:
+					_helpPopup.Show();
 					break;
 					
 				case (int)KeyList.G:
@@ -108,7 +134,7 @@ public class PlayScene : Node2D
 		}
 		
 		var lines = new List<string> {
-			$"[@] {_player.DisplayName}",
+			$"[c] {_player.DisplayName}",
 			$"HP {_player.HP}/{_player.HPMax}   AP {_player.AP} (+{_player.APRegeneration})",
 			$"${_player.Money}",
 			"Armor: " + (_player.Armor?.DisplayName ?? "-none-"),
@@ -143,8 +169,8 @@ public class PlayScene : Node2D
 		foreach (var deity in Globals.Deities)
 			lines.Add($"[cell]{deity.GetShortTitle()}[/cell][cell]{deity.PlayerFavor}[/cell]]");
 		lines.Add("[/table]");
-		var skipCount = Math.Max(0, _player.Messages.Count - 10);
-		lines.Add("\n[m] Messages:");
+		var skipCount = Math.Max(0, _player.Messages.Count - 5);
+		lines.Add("\n[h] Help\n\n[m] Messages:");
 		lines.AddRange(_player.Messages.Skip(skipCount));
 		
 		_sidebar.BbcodeText = string.Join("\n", lines);
@@ -152,7 +178,9 @@ public class PlayScene : Node2D
 	
 	public override void _Process(float delta)
 	{
-		if (_deityPopup.Visible)
+		if (_deityPopup.Visible
+				|| _characterPopup.Visible
+				|| _helpPopup.Visible)
 			return;
 		
 		var ticks = 0;
@@ -294,7 +322,8 @@ public class Catalog
 	public Item NewItem(int x, int y)
 	{
 		var constructors = new Func<int,int,Item>[] {
-			NewSword, NewAxe, NewClub, NewSpear
+			NewSword, NewAxe, NewClub, NewSpear,
+			NewLightArmor, NewMediumArmor, NewHeavyArmor 
 		};
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
@@ -340,6 +369,39 @@ public class Catalog
 		item.MadeOf = "wood";
 		item.ATK = 2;
 		item.DEF = 0;
+		return item;
+	}
+	
+	public Item NewLightArmor(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 11, 22);
+		item.DisplayName = "Light armor";
+		item.Type = ItemType.Armor;
+		item.MadeOf = "leather";
+		item.ATK = 0;
+		item.DEF = 1;
+		return item;
+	}
+	
+	public Item NewMediumArmor(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 33, 23);
+		item.DisplayName = "Medium armor";
+		item.Type = ItemType.Armor;
+		item.MadeOf = "metal";
+		item.ATK = 0;
+		item.DEF = 2;
+		return item;
+	}
+	
+	public Item NewHeavyArmor(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 32, 23);
+		item.DisplayName = "Heavy armor";
+		item.Type = ItemType.Armor;
+		item.MadeOf = "metal";
+		item.ATK = 0;
+		item.DEF = 3;
 		return item;
 	}
 }

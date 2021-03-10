@@ -39,10 +39,10 @@ public class Chaotic : DeityArchetype
 				switch (Globals.Random.Next(100))
 				{
 					case 0:
-						self.Like(next.Player, "just because");
+						self.Like(next.Player, "you just because");
 						break;
 					case 1:
-						self.Dislike(next.Player, "just because");
+						self.Dislike(next.Player, "you just because");
 						break;
 				}
 				

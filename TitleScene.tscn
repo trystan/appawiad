@@ -108,13 +108,28 @@ __meta__ = {
 "_edit_use_anchors_": false
 }
 
-[node name="Footer" type="Label" parent="."]
+[node name="Subtitle" type="Label" parent="."]
 anchor_right = 1.0
 margin_left = 10.0
 margin_top = 35.0
 margin_right = -10.0
 margin_bottom = 55.0
 text = "-- A 2021 7DRL by Trystan Spangler --"
+align = 1
+valign = 1
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Footer" type="Label" parent="."]
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 10.0
+margin_top = -30.0
+margin_right = -10.0
+margin_bottom = -10.0
+text = "Special thanks to u/vurmux for permission to use their excellent Urizen tileset!"
 align = 1
 valign = 1
 __meta__ = {
