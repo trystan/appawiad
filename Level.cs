@@ -44,6 +44,15 @@ public class Level : Node2D
 			}
 		}
 		
+		var alterX = -1;
+		var alterY = -1;
+		while (GetTile(alterX, alterY).BumpEffect != TileBumpEffect.None)
+		{
+			alterX = Globals.Random.Next(w);
+			alterY = Globals.Random.Next(h);
+		}
+		Tiles[alterX, alterY] = Tile.Alter;
+		
 		for (var x = 0; x < Tiles.GetLength(0); x++)
 		{
 			for (var y = 0; y < Tiles.GetLength(1); y++)

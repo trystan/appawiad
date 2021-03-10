@@ -9,6 +9,7 @@ public class PlayScene : Node2D
 	DeityPopup _deityPopup;
 	CharacterPopup _characterPopup;
 	HelpPopup _helpPopup;
+	AlterPopup _alterPopup;
 	Camera2D _camera;
 	
 	Level _level;
@@ -21,11 +22,14 @@ public class PlayScene : Node2D
 		_deityPopup = (DeityPopup)GetNode("CanvasLayer/DeityPopup");
 		_characterPopup = (CharacterPopup)GetNode("CanvasLayer/CharacterPopup");
 		_helpPopup = (HelpPopup)GetNode("CanvasLayer/HelpPopup");
+		_alterPopup = (AlterPopup)GetNode("CanvasLayer/AlterPopup");
 		
 		_camera = (Camera2D)GetNode("Camera2D");
 		
 		_level = (Level)GetNode("Level");
 		_level.Setup(32, 32);
+		
+		Globals.OnEventCallbacks.Add(OnEvent);
 		
 		var catalog = new Catalog();
 		
@@ -33,7 +37,7 @@ public class PlayScene : Node2D
 		{
 			var x = -1;
 			var y = -1;
-			while (_level.GetTile(x, y).BlocksMovement)
+			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None)
 			{
 				x = Globals.Random.Next(32);
 				y = Globals.Random.Next(32);
@@ -51,12 +55,23 @@ public class PlayScene : Node2D
 		{
 			var x = -1;
 			var y = -1;
-			while (_level.GetTile(x, y).BlocksMovement)
+			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None)
 			{
 				x = Globals.Random.Next(32);
 				y = Globals.Random.Next(32);
 			}
 			_level.Add(catalog.NewEnemy(x, y));
+		}
+	}
+	
+	public void OnEvent(IEvent e)
+	{
+		if (e is EnteredAlter alter)
+		{
+			if (alter.Agent == _player)
+				_alterPopup.Show(alter.Level, alter.Agent);
+			// else
+				// TODO
 		}
 	}
 	
@@ -91,7 +106,8 @@ public class PlayScene : Node2D
 		if (_player == null
 				|| _deityPopup.Visible
 				|| _characterPopup.Visible
-				|| _helpPopup.Visible)
+				|| _helpPopup.Visible
+				|| _alterPopup.Visible)
 			return;
 		
 		if (e is InputEventKey key && key.Pressed)
@@ -180,7 +196,8 @@ public class PlayScene : Node2D
 	{
 		if (_deityPopup.Visible
 				|| _characterPopup.Visible
-				|| _helpPopup.Visible)
+				|| _helpPopup.Visible
+				|| _alterPopup.Visible)
 			return;
 		
 		var ticks = 0;
@@ -426,9 +443,16 @@ public class MoveBy : ICommand
 	{
 		agent.AP -= 10;
 		
-		if (level.GetTile(agent.X + X, agent.Y + Y).BlocksMovement)
-			return;
 		if (X == 0 && Y == 0)
+			return;
+		
+		var tile = level.GetTile(agent.X + X, agent.Y + Y);
+		if (tile.BumpEffect == TileBumpEffect.Alter)
+		{
+			Globals.OnEvent(new EnteredAlter(level, agent));
+			return;
+		}
+		else if (tile.BlocksMovement)
 			return;
 		
 		var nextX = agent.X + X;
@@ -556,6 +580,8 @@ public static class Globals
 {
 	public static Random Random { get; } = new Random();
 	
+	public static List<Action<IEvent>> OnEventCallbacks { get; set; } = new List<Action<IEvent>>();
+	
 	public static string TextColorGood { get; } = "#33ff33";
 	public static string TextColorBad { get; } = "#cc3333";
 	
@@ -570,6 +596,8 @@ public static class Globals
 	{
 		foreach (var deity in Deities)
 			deity.OnEvent(e);
+		foreach (var callback in OnEventCallbacks)
+			callback(e);
 	}
 	
 	private static string MakeDeityName()
@@ -685,7 +713,7 @@ public class Deity
 	public int StrengthOfDislikes { get; set; } = 2;
 	public bool AcceptsPrayers { get; set; } = true;
 	public bool AcceptsDonations { get; set; } = true;
-	public bool AcceptsSacrafices { get; set; } = true;
+	public bool AcceptsSacrifices { get; set; } = true;
 	
 	public string GetFullTitle()
 	{
@@ -706,7 +734,7 @@ public class Deity
 	{
 		AcceptsPrayers = Globals.Random.NextDouble() < 0.8f;
 		AcceptsDonations = Globals.Random.NextDouble() < 0.8f;
-		AcceptsSacrafices = Globals.Random.NextDouble() < 0.2f;
+		AcceptsSacrifices = Globals.Random.NextDouble() < 0.2f;
 		
 		Archetype.Finalize(this, deities);
 		foreach (var domain in Domains)
@@ -963,13 +991,20 @@ public abstract class DeityDomain
 	}
 }
 
+public enum TileBumpEffect
+{
+	None, Block, Alter
+}
+
 public class Tile
 {
-	public static Tile Floor = new Tile { BlocksMovement = false, Indices = new []{ 0, 1, 2 } };
-	public static Tile Wall = new Tile { BlocksMovement = true, Indices = new []{ 3, 4, 5 } };
+	public static Tile Floor = new Tile { BumpEffect = TileBumpEffect.None, Indices = new []{ 0, 1, 2 } };
+	public static Tile Wall = new Tile { BumpEffect = TileBumpEffect.Block, Indices = new []{ 3, 4, 5 } };
+	public static Tile Alter = new Tile { BumpEffect = TileBumpEffect.Alter, Indices = new [] { 6 } };
 	
 	public int[] Indices { get; set; }
-	public bool BlocksMovement { get; set; }
+	public TileBumpEffect BumpEffect { get; set; }
+	public bool BlocksMovement => BumpEffect == TileBumpEffect.Block;
 	
 	public int RandomIndex()
 	{
@@ -1018,6 +1053,18 @@ public class NextTurn : IEvent
 {
 	public Level Level { get; set; }
 	public Agent Player { get; set; }
+}
+
+public class EnteredAlter : IEvent
+{
+	public Level Level { get; set; }
+	public Agent Agent { get; set; }
+	
+	public EnteredAlter(Level level, Agent agent)
+	{
+		Level = level;
+		Agent = agent;
+	}
 }
 
 public class StatusEffect

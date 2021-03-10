@@ -28,7 +28,7 @@ public class DeityPopup : ColorRect
 			text.BbcodeText += "\n" + deity.Name 
 				+ (deity.AcceptsPrayers ? " does " : " does not ") + "accept prayers,"
 				+ (deity.AcceptsDonations ? " does " : " does not ") + "accept donations, and"
-				+ (deity.AcceptsSacrafices ? " does " : " does not ") + "accept sacrafices.";
+				+ (deity.AcceptsSacrifices ? " does " : " does not ") + "accept sacrifices.";
 			
 			text.BbcodeText += "\n\n";
 		}

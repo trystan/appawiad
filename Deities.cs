@@ -141,7 +141,7 @@ public class Sleeping : DeityArchetype
 		self.ChanceOfCurse = -10;
 		self.AcceptsPrayers = false;
 		self.AcceptsDonations = false;
-		self.AcceptsSacrafices = false;
+		self.AcceptsSacrifices = false;
 		Description = $"{self.Name} slumbers forever and does not intervine in the mundane world.";
 	}
 }
@@ -163,7 +163,7 @@ public class Vengeful : DeityArchetype
 		self.StrengthOfDislikes *= 3;
 		self.AcceptsPrayers = true;
 		self.AcceptsDonations = true;
-		self.AcceptsSacrafices = true;
+		self.AcceptsSacrifices = true;
 		Description = "A vengeful deity is easy to displease but often intervenes to help those who worship them.";
 	}
 	
@@ -208,7 +208,7 @@ public class OfDeath : DeityDomain
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
 		self.FavorPerTeam["undead"] += 50;
-		self.AcceptsSacrafices = true;
+		self.AcceptsSacrifices = true;
 		likesKillingLiving = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
 		if (likesKillingLiving)
@@ -253,7 +253,7 @@ public class OfHealth : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		self.AcceptsSacrafices = false;
+		self.AcceptsSacrifices = false;
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
 			self.Likes.Add("healing living beings");
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)

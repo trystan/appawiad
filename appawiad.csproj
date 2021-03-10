@@ -54,6 +54,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Agent.cs" />
+    <Compile Include="AlterPopup.cs" />
     <Compile Include="CharacterPopup.cs" />
     <Compile Include="Deities.cs" />
     <Compile Include="DeityPopup.cs" />
