@@ -22,6 +22,7 @@ public class CharacterPopup : ColorRect
 			if (key.Scancode == (int)KeyList.Escape
 				|| key.Scancode == (int)KeyList.C)
 			{
+				GetTree().SetInputAsHandled();
 				Hide();
 			}
 		}

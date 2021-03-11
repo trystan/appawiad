@@ -118,37 +118,51 @@ public class PlayScene : Node2D
 					_deityPopup.Show();
 					foreach (var a in _level.Agents)
 						GD.Print($"{a.DisplayName} {a.HP}/{a.HPMax} {a.AP}+{a.APRegeneration}");
+					GetTree().SetInputAsHandled();
 					break;
 				
 				case (int)KeyList.C:
 					_characterPopup.Show(_player);
+					GetTree().SetInputAsHandled();
 					break;
 				
 				case (int)KeyList.H:
 					_helpPopup.Show();
+					GetTree().SetInputAsHandled();
 					break;
 					
 				case (int)KeyList.G:
 					_nextPlayerCommand = new PickupItem();
+					GetTree().SetInputAsHandled();
 					break;
 				case (int)KeyList.Left:
 					_nextPlayerCommand = new MoveBy(-1, 0);
+					GetTree().SetInputAsHandled();
 					break;
 				case (int)KeyList.Right:
 					_nextPlayerCommand = new MoveBy( 1, 0);
+					GetTree().SetInputAsHandled();
 					break;
 				case (int)KeyList.Up:
 					_nextPlayerCommand = new MoveBy(0, -1);
+					GetTree().SetInputAsHandled();
 					break;
 				case (int)KeyList.Down:
 					_nextPlayerCommand = new MoveBy(0,  1);
+					GetTree().SetInputAsHandled();
 					break;
 				case (int)KeyList.Period:
 					_nextPlayerCommand = new MoveBy(0,  0);
+					GetTree().SetInputAsHandled();
 					break;
 			}
 		}
 		
+		UpdateUI();
+	}
+	
+	public void UpdateUI()
+	{
 		var lines = new List<string> {
 			$"[c] {_player.DisplayName}",
 			$"HP {_player.HP}/{_player.HPMax}   AP {_player.AP} (+{_player.APRegeneration})",
@@ -192,6 +206,8 @@ public class PlayScene : Node2D
 		_sidebar.BbcodeText = string.Join("\n", lines);
 	}
 	
+	int _processSomeoneIsStuckCounter;
+	Agent _lastSeenAgent;
 	public override void _Process(float delta)
 	{
 		if (_deityPopup.Visible
@@ -219,7 +235,7 @@ public class PlayScene : Node2D
 			{
 				if (_nextPlayerCommand == null)
 					break;
-					
+				
 				_level.Agents.RemoveAt(0);
 				_nextPlayerCommand.Do(_level, _player);
 				_nextPlayerCommand = null;
@@ -234,6 +250,31 @@ public class PlayScene : Node2D
 				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
 			}
 		}
+		
+		if (_level.Agents.Any())
+		{
+			// not sure why this happens sometimes...
+			if (_level.Agents[0] == _lastSeenAgent)
+			{
+				if (_level.Agents[0] != _player)
+				{
+					if (_processSomeoneIsStuckCounter++ > 10)
+					{
+						var agent = _level.Agents[0];
+						agent.AP = 0;
+						_level.Agents.RemoveAt(0);
+						_level.Agents.Add(agent);
+						_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
+						_processSomeoneIsStuckCounter = 0;
+						_lastSeenAgent = null;
+					}
+				}
+			}
+			else
+				_lastSeenAgent = _level.Agents[0];
+		}
+		
+		UpdateUI();
 	}
 }
 
@@ -340,7 +381,8 @@ public class Catalog
 	{
 		var constructors = new Func<int,int,Item>[] {
 			NewSword, NewAxe, NewClub, NewSpear,
-			NewLightArmor, NewMediumArmor, NewHeavyArmor 
+			NewLightArmor, NewMediumArmor, NewHeavyArmor,
+			NewMoney,
 		};
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
@@ -419,6 +461,14 @@ public class Catalog
 		item.MadeOf = "metal";
 		item.ATK = 0;
 		item.DEF = 3;
+		return item;
+	}
+	
+	public Item NewMoney(int x, int y)
+	{
+		var item = ((Item)_itemScene.Instance()).Setup(x, y, 21, 34);
+		item.DisplayName = "Money";
+		item.Type = ItemType.Money;
 		return item;
 	}
 }
@@ -534,15 +584,21 @@ public class PickupItem : ICommand
 		if (item == null)
 			return;
 		
-		if (item.Type == ItemType.Armor)
+		if (item.Type == ItemType.Money)
+		{
+			var amount = Globals.Random.Next(1,5) + Globals.Random.Next(1,5);
+			agent.Money += amount;
+			level.Remove(item);
+			agent.Messages.Add($"You pick up [color=#ffff33]${amount}[/color]");
+		}
+		else if (item.Type == ItemType.Armor)
 		{
 			if (agent.Armor != null)
 				Drop(level, agent, agent.Armor);
 			Pickup(level, agent, item);
 			Globals.OnEvent(new UsedItem(agent, agent.Armor));
 		}
-		
-		if (item.Type == ItemType.Weapon)
+		else if (item.Type == ItemType.Weapon)
 		{
 			if (agent.Weapon != null)
 				Drop(level, agent, agent.Weapon);
@@ -712,8 +768,8 @@ public class Deity
 	public int StrengthOfLikes { get; set; } = 2;
 	public int StrengthOfDislikes { get; set; } = 2;
 	public bool AcceptsPrayers { get; set; } = true;
-	public bool AcceptsDonations { get; set; } = true;
-	public bool AcceptsSacrifices { get; set; } = true;
+	public float DonationMultiplier { get; set; } = 1.0f;
+	public int SacrificeCost { get; set; } = -1;
 	
 	public string GetFullTitle()
 	{
@@ -732,9 +788,9 @@ public class Deity
 	
 	public void Finalize(IEnumerable<Deity> deities)
 	{
-		AcceptsPrayers = Globals.Random.NextDouble() < 0.8f;
-		AcceptsDonations = Globals.Random.NextDouble() < 0.8f;
-		AcceptsSacrifices = Globals.Random.NextDouble() < 0.2f;
+		AcceptsPrayers = Globals.Random.NextDouble() < 0.66f;
+		DonationMultiplier = Globals.Random.NextDouble() < 0.66 ? 1 : -1;
+		SacrificeCost = Globals.Random.NextDouble() < 0.2f ? 5 : -1;
 		
 		Archetype.Finalize(this, deities);
 		foreach (var domain in Domains)
@@ -870,6 +926,9 @@ public class Deity
 	
 	public void FavorCheck(Agent agent)
 	{
+		if (agent.HP < 1)
+			return;
+		
 		if (!FavorPerTeam.ContainsKey(agent.Team))
 			FavorPerTeam[agent.Team] = 0;
 		
@@ -894,6 +953,9 @@ public class Deity
 	
 	public void Like(Agent agent, string what)
 	{
+		if (agent.HP < 1)
+			return;
+		
 		if (!FavorPerTeam.ContainsKey(agent.Team))
 			FavorPerTeam[agent.Team] = 0;
 		FavorPerTeam[agent.Team] += StrengthOfLikes;
@@ -904,6 +966,9 @@ public class Deity
 	
 	public void Dislike(Agent agent, string what)
 	{
+		if (agent.HP < 1)
+			return;
+		
 		if (!FavorPerTeam.ContainsKey(agent.Team))
 			FavorPerTeam[agent.Team] = 0;
 		FavorPerTeam[agent.Team] -= StrengthOfDislikes;
@@ -1001,6 +1066,7 @@ public class Tile
 	public static Tile Floor = new Tile { BumpEffect = TileBumpEffect.None, Indices = new []{ 0, 1, 2 } };
 	public static Tile Wall = new Tile { BumpEffect = TileBumpEffect.Block, Indices = new []{ 3, 4, 5 } };
 	public static Tile Alter = new Tile { BumpEffect = TileBumpEffect.Alter, Indices = new [] { 6 } };
+	public static Tile ExhaustedAlter = new Tile { BumpEffect = TileBumpEffect.Block, Indices = new [] { 7 } };
 	
 	public int[] Indices { get; set; }
 	public TileBumpEffect BumpEffect { get; set; }
@@ -1019,7 +1085,7 @@ public enum AgentTag
 
 public enum ItemType
 {
-	Armor, Weapon, Other
+	Armor, Weapon, Money, Other
 }
 
 public interface IEvent

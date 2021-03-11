@@ -19,6 +19,20 @@ public class Agent : Sprite
 	{
 		if (HP < 1) {
 			QueueFree();
+			var camera = (Camera2D)GetNode("Camera2D");
+			if (camera != null)
+			{
+				RemoveChild(camera);
+				camera.Position = Position;
+				GetParent().AddChild(camera);
+				
+				var tween = new Tween();
+				GetParent().AddChild(tween);
+				tween.InterpolateProperty(camera, "zoom",
+					camera.Zoom, new Vector2(2.5f, 2.5f), 60,
+					Tween.TransitionType.Quad, Tween.EaseType.InOut);
+				tween.Start();
+			}
 		} else if (IsMoving)
 		{
 			var speed = 24 * 8 * delta;

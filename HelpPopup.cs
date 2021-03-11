@@ -41,6 +41,7 @@ public class HelpPopup : ColorRect
 			if (key.Scancode == (int)KeyList.Escape
 				|| key.Scancode == (int)KeyList.H)
 			{
+				GetTree().SetInputAsHandled();
 				Hide();
 			}
 		}

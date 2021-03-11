@@ -140,8 +140,8 @@ public class Sleeping : DeityArchetype
 		self.ChanceOfBlessing = -10;
 		self.ChanceOfCurse = -10;
 		self.AcceptsPrayers = false;
-		self.AcceptsDonations = false;
-		self.AcceptsSacrifices = false;
+		self.DonationMultiplier = -1;
+		self.SacrificeCost = -100;
 		Description = $"{self.Name} slumbers forever and does not intervine in the mundane world.";
 	}
 }
@@ -162,8 +162,8 @@ public class Vengeful : DeityArchetype
 		self.StrengthOfLikes /= 2;
 		self.StrengthOfDislikes *= 3;
 		self.AcceptsPrayers = true;
-		self.AcceptsDonations = true;
-		self.AcceptsSacrifices = true;
+		self.DonationMultiplier = 1;
+		self.SacrificeCost = 10;
 		Description = "A vengeful deity is easy to displease but often intervenes to help those who worship them.";
 	}
 	
@@ -208,7 +208,7 @@ public class OfDeath : DeityDomain
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
 		self.FavorPerTeam["undead"] += 50;
-		self.AcceptsSacrifices = true;
+		self.SacrificeCost -= 2;
 		likesKillingLiving = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
 		if (likesKillingLiving)
@@ -253,7 +253,7 @@ public class OfHealth : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		self.AcceptsSacrifices = false;
+		self.SacrificeCost = -100;
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
 			self.Likes.Add("healing living beings");
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
@@ -337,6 +337,7 @@ public class OfLove : DeityDomain
 		self.ChanceOfCurse -= 0.25f;
 		self.StrengthOfLikes *= 2;
 		self.StrengthOfDislikes /= 2;
+		self.SacrificeCost += 5;
 		
 		_lover = self;
 		while (_lover == self)
@@ -386,7 +387,7 @@ public class OfCommerce : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		self.AcceptsDonations = true;
+		self.DonationMultiplier = 2;
 		
 		likesMoney = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		if (likesMoney)

@@ -70,6 +70,12 @@ public class Level : Node2D
 		return Tiles[x,y];
 	}
 	
+	public void SetTile(int x, int y, Tile tile)
+	{
+		Tiles[x,y] = tile;
+		_tileMap.SetCell(x, y, tile.RandomIndex());
+	}
+	
 	public void Add(Item item)
 	{
 		Items.Add(item);

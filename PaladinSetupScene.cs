@@ -32,8 +32,8 @@ public class PaladinSetupScene : CanvasLayer
 			
 			text.BbcodeText += "\n" + deity.Name 
 				+ (deity.AcceptsPrayers ? " does " : " does not ") + "accept prayers,"
-				+ (deity.AcceptsDonations ? " does " : " does not ") + "accept donations, and"
-				+ (deity.AcceptsSacrifices ? " does " : " does not ") + "accept sacrifices.";
+				+ ((deity.DonationMultiplier > 0) ? " does " : " does not ") + "accept donations, and"
+				+ ((deity.SacrificeCost > 0) ? " does " : " does not ") + "accept sacrifices.";
 			_choices[(uint)chars[i]] = deity;
 			
 			text.BbcodeText += $"\n-- press [{chars[i]}] to devote yourself to {deity.Name} --";

@@ -27,8 +27,8 @@ public class DeityPopup : ColorRect
 			
 			text.BbcodeText += "\n" + deity.Name 
 				+ (deity.AcceptsPrayers ? " does " : " does not ") + "accept prayers,"
-				+ (deity.AcceptsDonations ? " does " : " does not ") + "accept donations, and"
-				+ (deity.AcceptsSacrifices ? " does " : " does not ") + "accept sacrifices.";
+				+ ((deity.DonationMultiplier > 0) ? " does " : " does not ") + "accept donations, and"
+				+ ((deity.SacrificeCost > 0) ? " does " : " does not ") + "accept sacrifices.";
 			
 			text.BbcodeText += "\n\n";
 		}
@@ -44,6 +44,7 @@ public class DeityPopup : ColorRect
 			if (key.Scancode == (int)KeyList.Escape
 				|| key.Scancode == (int)KeyList.Tab)
 			{
+				GetTree().SetInputAsHandled();
 				Hide();
 			}
 		}
