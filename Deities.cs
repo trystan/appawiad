@@ -209,6 +209,7 @@ public class OfDeath : DeityDomain
 	{
 		self.FavorPerTeam["undead"] += 50;
 		self.SacrificeCost -= 2;
+		self.Likes.Add("bones");
 		likesKillingLiving = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
 		if (likesKillingLiving)
@@ -221,6 +222,15 @@ public class OfDeath : DeityDomain
 	{
 		switch (e)
 		{
+			case UsedItem used:
+				var wasGood = used.PreviousItem?.MadeOf == "bone";
+				var good = used.Item?.MadeOf == "bone";
+				if (good && !wasGood)
+					self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				else if (!good && wasGood)
+					self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				break;
+				
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (likesKillingLiving && attack.Attacked.Tags.Contains(AgentTag.Living))
 					self.Like(e.Level, attack.Attacker, "killing the living");
@@ -506,8 +516,8 @@ public class OfWar : DeityDomain
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.AddAttackEffect("-ATK vs all", a => a.AttackBonus++);
-		curse.AddDefendEffect("-DEF vs all", a => a.DefendBonus++);
+		curse.AddAttackEffect("-ATK vs all", a => a.AttackBonus--);
+		curse.AddDefendEffect("-DEF vs all", a => a.DefendBonus--);
 	}
 	
 	int _chanceOfWeapon = 16;
@@ -550,6 +560,153 @@ public class OfWar : DeityDomain
 				() => {
 					_chanceOfArmor /= 2;
 					var item = level.Catalog.NewArmor(0,0);
+					if (materials.Any())
+					{
+						var material = materials[Globals.Random.Next(materials.Length)];
+						item.MadeOf = material;
+						item.DisplayName = $"{material} armor of {self.Name}";
+					}
+					else
+						item.DisplayName = $"{item.DisplayName} of {self.Name}";
+					agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] gives you a gift");
+					new PickupItem().Do(level, agent, item);
+				},
+				() => {});
+			yield return armor;
+		}
+	}
+}
+
+public class OfAttack : DeityDomain
+{
+	bool likesAttacking;
+	bool dislikesDefending;
+	public OfAttack() : base("attacking")
+	{
+	}
+	
+	public override void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
+		likesAttacking = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
+		if (likesAttacking)
+			self.Likes.Add("attacking");
+		dislikesDefending = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
+		if (dislikesDefending)
+			self.Dislikes.Add("defending");
+	}
+	
+	public override void OnEvent(Deity self, IEvent e)
+	{
+		switch (e)
+		{
+			case DidAttack attack:
+				if (likesAttacking && Globals.Random.NextDouble() < 0.2)
+					self.Like(e.Level, attack.Attacker, "attacking");
+				if (dislikesDefending && Globals.Random.NextDouble() < 0.2)
+					self.Dislike(e.Level, attack.Attacker, "defending");
+				break;
+		}
+	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		blessing.AddAttackEffect("+ATK vs all", a => a.AttackBonus += 2);
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		curse.AddAttackEffect("-ATK vs all", a => a.AttackBonus -= 2);
+	}
+	
+	int _chanceOfItem = 16;
+	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		if (Globals.Random.Next(100) < _chanceOfItem)
+		{
+			var armor = new StatusEffect {
+				Name = null,
+				TurnsRemaining = 1
+			};
+			armor.AddEffect(null, 
+				() => {
+					_chanceOfItem /= 2;
+					var item = level.Catalog.NewWeapon(0,0);
+					item.ATK = 3;
+					var materials = self.GetPreferredMaterials().ToArray();
+					if (materials.Any())
+					{
+						var material = materials[Globals.Random.Next(materials.Length)];
+						item.MadeOf = material;
+						item.DisplayName = $"{material} {item.DisplayName} of {self.Name}";
+					}
+					else
+						item.DisplayName = $"{item.DisplayName} of {self.Name}";
+					agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] gives you a gift");
+					new PickupItem().Do(level, agent, item);
+				},
+				() => {});
+			yield return armor;
+		}
+	}
+}
+
+public class OfProtection : DeityDomain
+{
+	bool likesDefending;
+	bool dislikesAttacking;
+	
+	public OfProtection() : base("protection")
+	{
+	}
+	
+	public override void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
+		likesDefending = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
+		if (likesDefending)
+			self.Likes.Add("defending");
+		dislikesAttacking = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
+		if (dislikesAttacking)
+			self.Dislikes.Add("attacking");
+	}
+	
+	public override void OnEvent(Deity self, IEvent e)
+	{
+		switch (e)
+		{
+			case DidAttack attack:
+				if (likesDefending && Globals.Random.NextDouble() < 0.2)
+					self.Like(e.Level, attack.Attacked, "defending");
+				if (dislikesAttacking && Globals.Random.NextDouble() < 0.2)
+					self.Dislike(e.Level, attack.Attacked, "attacking");
+				break;
+		}
+	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+		blessing.AddAttackEffect("+DEF vs all", a => a.DefendBonus += 2);
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		curse.AddAttackEffect("-DEF vs all", a => a.DefendBonus -= 2);
+	}
+	
+	int _chanceOfItem = 16;
+	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		if (Globals.Random.Next(100) < _chanceOfItem)
+		{
+			var armor = new StatusEffect {
+				Name = null,
+				TurnsRemaining = 1
+			};
+			armor.AddEffect(null, 
+				() => {
+					_chanceOfItem /= 2;
+					var item = level.Catalog.NewArmor(0,0);
+					item.DEF = 3;
+					var materials = self.GetPreferredMaterials().ToArray();
 					if (materials.Any())
 					{
 						var material = materials[Globals.Random.Next(materials.Length)];
@@ -683,7 +840,7 @@ public class OfFire : DeityDomain
 		yield return disliked;
 	}
 	
-	int _chanceOfFire = 100;
+	int _chanceOfFire = 16;
 	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
 	{
 		if (Globals.Random.Next(100) < _chanceOfFire)
@@ -768,34 +925,6 @@ public class OfStars : DeityDomain
 	}
 }
 
-public class OfSun : DeityDomain
-{
-	public OfSun() : base("the sun")
-	{
-	}
-	
-	public override void Finalize(Deity self, IEnumerable<Deity> deities)
-	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("fire");
-	}
-}
-
-public class OfMoon : DeityDomain
-{
-	public OfMoon() : base("the moon")
-	{
-	}
-	
-	public override void Finalize(Deity self, IEnumerable<Deity> deities)
-	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("being outdoors");
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
-			self.Dislikes.Add("being indoors");
-	}
-}
-
 public class OfForests : DeityDomain
 {
 	bool likesUsingWood;
@@ -821,8 +950,15 @@ public class OfForests : DeityDomain
 		switch (e)
 		{
 			case UsedItem used:
-				if (likesUsingWood && used.Item?.MadeOf == "wood")
-					self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				if (likesUsingWood)
+				{
+					var wasGood = used.PreviousItem?.MadeOf == "wood";
+					var good = used.Item?.MadeOf == "wood";
+					if (good && !wasGood)
+						self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
+					else if (!good && wasGood)
+						self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				}
 				break;
 				
 			case DidAttack attack when attack.Attacked.HP < 1:
@@ -884,10 +1020,24 @@ public class OfMountains : DeityDomain
 		switch (e)
 		{
 			case UsedItem used:
-				if (likesUsingStone && used.Item?.MadeOf == "stone")
-					self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
-				if (likesUsingMetal && used.Item?.MadeOf == "metal")
-					self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				if (likesUsingStone)
+				{
+					var wasGood = used.PreviousItem?.MadeOf == "stone";
+					var good = used.Item?.MadeOf == "stone";
+					if (good && !wasGood)
+						self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
+					else if (!good && wasGood)
+						self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				}
+				if (likesUsingMetal)
+				{
+					var wasGood = used.PreviousItem?.MadeOf == "metal";
+					var good = used.Item?.MadeOf == "metal";
+					if (good && !wasGood)
+						self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
+					else if (!good && wasGood)
+						self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
+				}
 				break;
 		}
 	}

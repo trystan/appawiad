@@ -652,17 +652,19 @@ public class PickupItem : ICommand
 		}
 		else if (item.Type == ItemType.Armor)
 		{
+			var dropped = agent.Armor;
 			if (agent.Armor != null)
 				Drop(level, agent, agent.Armor);
 			Pickup(level, agent, item);
-			Globals.OnEvent(new UsedItem(level, agent, agent.Armor));
+			Globals.OnEvent(new UsedItem(level, agent, agent.Armor) { PreviousItem = dropped });
 		}
 		else if (item.Type == ItemType.Weapon)
 		{
+			var dropped = agent.Weapon;
 			if (agent.Weapon != null)
 				Drop(level, agent, agent.Weapon);
 			Pickup(level, agent, item);
-			Globals.OnEvent(new UsedItem(level, agent, agent.Weapon));
+			Globals.OnEvent(new UsedItem(level, agent, agent.Weapon) { PreviousItem = dropped });
 		}
 	}
 	
@@ -1192,6 +1194,7 @@ public class UsedItem : IEvent
 {
 	public Level Level { get; set; }
 	public Agent Agent { get; set; }
+	public Item PreviousItem { get; set; }
 	public Item Item { get; set; }
 	public UsedItem(Level level, Agent agent, Item item)
 	{
