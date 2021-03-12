@@ -59,6 +59,9 @@ public class CharacterPopup : ColorRect
 		{
 			foreach (var effect in player.StatusEffects)
 			{
+				if (effect.Name == null)
+					continue;
+				
 				lines.Add(effect.Name);
 				foreach (var description in effect.Descriptions)
 					lines.Add(" " + description);

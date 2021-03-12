@@ -7,6 +7,7 @@ public class Level : Node2D
 {
 	TileMap _tileMap;
 	
+	public Catalog Catalog { get; set; }
 	public Tile[,] Tiles { get; private set; }
 	public List<Agent> Agents { get; set; } = new List<Agent>();
 	public List<Item> Items { get; set; } = new List<Item>();
@@ -32,15 +33,16 @@ public class Level : Node2D
 		Agents.RemoveAll(a => a.HP < 1);
 	}
 	
-	public void Setup(int w, int h)
+	public void Setup(Catalog catalog, int w, int h)
 	{
+		Catalog = catalog;
 		Tiles = new Tile[w,h];
 		
 		for (var x = 0; x < Tiles.GetLength(0); x++)
 		{
 			for (var y = 0; y < Tiles.GetLength(1); y++)
 			{
-				Tiles[x,y] = Globals.Random.NextDouble() < 0.2 ? Tile.Wall : Tile.Floor;
+				Tiles[x,y] = Globals.Random.NextDouble() < 0.25 ? Tile.Wall : Tile.Floor;
 			}
 		}
 		
@@ -74,6 +76,11 @@ public class Level : Node2D
 	{
 		Tiles[x,y] = tile;
 		_tileMap.SetCell(x, y, tile.RandomIndex());
+	}
+	
+	public Agent GetAgent(int x, int y)
+	{
+		return Agents.FirstOrDefault(a => a.X == x && a.Y == y);
 	}
 	
 	public void Add(Item item)

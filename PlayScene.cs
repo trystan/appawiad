@@ -26,12 +26,11 @@ public class PlayScene : Node2D
 		
 		_camera = (Camera2D)GetNode("Camera2D");
 		
+		var catalog = new Catalog();
 		_level = (Level)GetNode("Level");
-		_level.Setup(32, 32);
+		_level.Setup(catalog, 32, 32);
 		
 		Globals.OnEventCallbacks.Add(OnEvent);
-		
-		var catalog = new Catalog();
 		
 		for (var i = 0; i < 16; i++)
 		{
@@ -45,7 +44,7 @@ public class PlayScene : Node2D
 			_level.Add(catalog.NewItem(x, y));
 		}
 		
-		_player = catalog.NewPlayer(3, 4);
+		_player = Globals.Player ?? catalog.NewPlayer(3, 4);
 		_player.Messages.Add("Welcome!");
 		_level.Add(_player);
 		RemoveChild(_camera);
@@ -77,28 +76,65 @@ public class PlayScene : Node2D
 	
 	public ICommand GetCommandForAi(Agent agent)
 	{
-		var commands = GetCommandsForAi(agent).ToArray();
-		return commands[Globals.Random.Next(commands.Length)];
+		var commands = GetCommandsForAi(agent)
+			.OrderByDescending(kv => kv.Value);
+		var total = commands.Sum(kv => kv.Value);
+		var index = Globals.Random.Next(total / 2);
+		foreach (var kv in commands)
+		{
+			index -= kv.Value;
+			if (index <= 0)
+				return kv.Key;
+		}
+		return null;
 	}
 	
-	public IEnumerable<ICommand> GetCommandsForAi(Agent agent)
+	public List<KeyValuePair<ICommand,int>> GetCommandsForAi(Agent agent)
 	{
+		var commands = new Dictionary<ICommand, int>();
+		
 		if (!agent.Tags.Contains(AgentTag.Stationary))
 		{
 			if (!_level.GetTile(agent.X - 1, agent.Y).BlocksMovement)
-				yield return new MoveBy(-1, 0);
+				commands.Add(new MoveBy(-1, 0), 5);
 			
 			if (!_level.GetTile(agent.X + 1, agent.Y).BlocksMovement)
-				yield return new MoveBy(1, 0);
+				commands.Add(new MoveBy(1, 0), 5);
 			
 			if (!_level.GetTile(agent.X, agent.Y - 1).BlocksMovement)
-				yield return new MoveBy(0, -1);
+				commands.Add(new MoveBy(0, -1), 5);
 			
 			if (!_level.GetTile(agent.X, agent.Y + 1).BlocksMovement)
-				yield return new MoveBy(0, 1);
+				commands.Add(new MoveBy(0, 1), 5);
 		}
 		
-		yield return new MoveBy(0, 0);
+		commands.Add(new MoveBy(0, 0), 5);
+		
+		foreach (var key in commands.Keys.ToArray())
+		{
+			if (key is MoveBy moveBy)
+			{
+				var other = _level.GetAgent(agent.X + moveBy.X, agent.Y + moveBy.Y);
+				if (other == null || other == agent)
+					continue;
+				if (other == _player)
+					commands[key] += 5;
+				else if (other.Team == agent.Team)
+					commands[key] -= 3;
+				else
+					commands[key] -= 1;
+			}
+		}
+		
+		var shuffled = new List<KeyValuePair<ICommand,int>>();
+		var list = commands.ToList();
+		while (list.Any())
+		{
+			var i = Globals.Random.Next(list.Count);
+			shuffled.Add(list[i]);
+			list.RemoveAt(i);
+		}
+		return shuffled;
 	}
 	
 	public override void _UnhandledInput(InputEvent e)
@@ -178,6 +214,9 @@ public class PlayScene : Node2D
 		{
 			foreach (var effect in _player.StatusEffects)
 			{
+				if (effect.Name == null)
+					continue;
+				
 				lines.Add(effect.Name);
 				foreach (var description in effect.Descriptions)
 					lines.Add(" " + description);
@@ -199,7 +238,7 @@ public class PlayScene : Node2D
 		foreach (var deity in Globals.Deities)
 			lines.Add($"[cell]{deity.GetShortTitle()}[/cell][cell]{deity.PlayerFavor}[/cell]]");
 		lines.Add("[/table]");
-		var skipCount = Math.Max(0, _player.Messages.Count - 5);
+		var skipCount = Math.Max(0, _player.Messages.Count - 10);
 		lines.Add("\n[h] Help\n\n[m] Messages:");
 		lines.AddRange(_player.Messages.Skip(skipCount));
 		
@@ -387,6 +426,22 @@ public class Catalog
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
 	
+	public Item NewWeapon(int x, int y)
+	{
+		var constructors = new Func<int,int,Item>[] {
+			NewSword, NewAxe, NewClub, NewSpear,
+		};
+		return constructors[Globals.Random.Next(constructors.Length)](x, y);
+	}
+	
+	public Item NewArmor(int x, int y)
+	{
+		var constructors = new Func<int,int,Item>[] {
+			NewLightArmor, NewMediumArmor, NewHeavyArmor,
+		};
+		return constructors[Globals.Random.Next(constructors.Length)](x, y);
+	}
+	
 	public Item NewSword(int x, int y)
 	{
 		var item = ((Item)_itemScene.Instance()).Setup(x, y, 26, 21);
@@ -529,7 +584,7 @@ public class MoveBy : ICommand
 				other.Messages.Add($"You were killed by a {agent.DisplayName}");
 				level.Agents.Remove(other);
 			}
-			Globals.OnEvent(new DidAttack(agent, other));
+			Globals.OnEvent(new DidAttack(level, agent, other));
 		}
 		else
 		{
@@ -583,7 +638,11 @@ public class PickupItem : ICommand
 		var item = level.Items.FirstOrDefault(i => i.X == agent.X && i.Y == agent.Y);
 		if (item == null)
 			return;
-		
+		Do(level, agent, item);
+	}
+	
+	public void Do(Level level, Agent agent, Item item)
+	{
 		if (item.Type == ItemType.Money)
 		{
 			var amount = Globals.Random.Next(1,5) + Globals.Random.Next(1,5);
@@ -596,14 +655,14 @@ public class PickupItem : ICommand
 			if (agent.Armor != null)
 				Drop(level, agent, agent.Armor);
 			Pickup(level, agent, item);
-			Globals.OnEvent(new UsedItem(agent, agent.Armor));
+			Globals.OnEvent(new UsedItem(level, agent, agent.Armor));
 		}
 		else if (item.Type == ItemType.Weapon)
 		{
 			if (agent.Weapon != null)
 				Drop(level, agent, agent.Weapon);
 			Pickup(level, agent, item);
-			Globals.OnEvent(new UsedItem(agent, agent.Weapon));
+			Globals.OnEvent(new UsedItem(level, agent, agent.Weapon));
 		}
 	}
 	
@@ -642,6 +701,8 @@ public static class Globals
 	public static string TextColorBad { get; } = "#cc3333";
 	
 	public static List<Deity> Deities { get; set; } = new List<Deity>();
+	
+	public static Agent Player { get; set; }
 	
 	static Globals()
 	{
@@ -771,6 +832,14 @@ public class Deity
 	public float DonationMultiplier { get; set; } = 1.0f;
 	public int SacrificeCost { get; set; } = -1;
 	
+	public IEnumerable<string> GetPreferredMaterials()
+	{
+		foreach (var material in Archetype.GetPreferredMaterials())
+			yield return material;
+		foreach (var material in Domains.SelectMany(d => d.GetPreferredMaterials()))
+			yield return material;
+	}
+	
 	public string GetFullTitle()
 	{
 		var title = Pronoun == "he" ? "god" : "godess";
@@ -814,7 +883,7 @@ public class Deity
 			domain.OnEvent(this, e);
 		
 		if (e is NextTurn turn && Globals.Random.NextDouble() < 0.01)
-			FavorCheck(turn.Player);
+			FavorCheck(e.Level, turn.Player);
 	}
 	
 	public List<StatusEffect> GetInterventions(Level level, Agent agent)
@@ -924,7 +993,7 @@ public class Deity
 		return curse;
 	}
 	
-	public void FavorCheck(Agent agent)
+	public void FavorCheck(Level level, Agent agent)
 	{
 		if (agent.HP < 1)
 			return;
@@ -943,7 +1012,9 @@ public class Deity
 				FavorPerTeam[agent.Team]++;
 		}
 		
-		var candidates = GetInterventions(null, agent);
+		var candidates = GetInterventions(level, agent)
+			.Where(i => !agent.StatusEffects.Any(s => s.Name == i.Name))
+			.ToList();
 		if (candidates.Any())
 		{
 			var chosen = candidates[Globals.Random.Next(candidates.Count)];
@@ -951,7 +1022,7 @@ public class Deity
 		}
 	}
 	
-	public void Like(Agent agent, string what)
+	public void Like(Level level, Agent agent, string what)
 	{
 		if (agent.HP < 1)
 			return;
@@ -961,10 +1032,10 @@ public class Deity
 		FavorPerTeam[agent.Team] += StrengthOfLikes;
 		agent.Messages.Add($"[color={Globals.TextColorGood}]{Name} likes {what}[/color]");
 		GD.Print(Name + " likes team " + agent.Team + " because " + what);
-		FavorCheck(agent);
+		FavorCheck(level, agent);
 	}
 	
-	public void Dislike(Agent agent, string what)
+	public void Dislike(Level level, Agent agent, string what)
 	{
 		if (agent.HP < 1)
 			return;
@@ -974,7 +1045,7 @@ public class Deity
 		FavorPerTeam[agent.Team] -= StrengthOfDislikes;
 		agent.Messages.Add($"[color={Globals.TextColorBad}]{Name} dislikes {what}[/color]");
 		GD.Print(Name + " dislikes team " + agent.Team + " because " + what);
-		FavorCheck(agent);
+		FavorCheck(level, agent);
 	}
 }
 
@@ -1017,6 +1088,11 @@ public abstract class DeityArchetype
 	{
 		yield break;
 	}
+	
+	public virtual IEnumerable<string> GetPreferredMaterials()
+	{
+		yield break;
+	}
 }
 
 public abstract class DeityDomain
@@ -1051,6 +1127,11 @@ public abstract class DeityDomain
 	}
 	
 	public virtual IEnumerable<StatusEffect> GetBadInterventions(Deity self, Level level, Agent agent)
+	{
+		yield break;
+	}
+	
+	public virtual IEnumerable<string> GetPreferredMaterials()
 	{
 		yield break;
 	}
@@ -1090,15 +1171,18 @@ public enum ItemType
 
 public interface IEvent
 {
+	Level Level { get; }
 }
 
 public class DidAttack : IEvent
 {
+	public Level Level { get; set; }
 	public Agent Attacker { get; set; }
 	public Agent Attacked { get; set; }
 	
-	public DidAttack(Agent attacker, Agent attacked)
+	public DidAttack(Level level, Agent attacker, Agent attacked)
 	{
+		Level = level;
 		Attacker = attacker;
 		Attacked = attacked;
 	}
@@ -1106,10 +1190,12 @@ public class DidAttack : IEvent
 
 public class UsedItem : IEvent
 {
+	public Level Level { get; set; }
 	public Agent Agent { get; set; }
 	public Item Item { get; set; }
-	public UsedItem(Agent agent, Item item)
+	public UsedItem(Level level, Agent agent, Item item)
 	{
+		Level = level;
 		Agent = agent;
 		Item = item;
 	}
@@ -1176,7 +1262,8 @@ public class StatusEffect
 	public void Begin(Level level, Agent agent)
 	{
 		agent.StatusEffects.Add(this);
-		agent.Messages.Add("You feel " + Name);
+		if (Name != null)
+			agent.Messages.Add("You feel " + Name);
 		foreach (var effect in BeginEffects)
 			effect();
 	}
@@ -1184,7 +1271,8 @@ public class StatusEffect
 	public void End(Level level, Agent agent)
 	{
 		agent.StatusEffects.Remove(this);
-		agent.Messages.Add("You no longer feel " + Name);
+		if (Name != null)
+			agent.Messages.Add("You no longer feel " + Name);
 		foreach (var effect in EndEffects)
 			effect();
 	}

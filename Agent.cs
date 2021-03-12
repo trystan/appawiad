@@ -19,9 +19,10 @@ public class Agent : Sprite
 	{
 		if (HP < 1) {
 			QueueFree();
-			var camera = (Camera2D)GetNode("Camera2D");
-			if (camera != null)
+			
+			if (HasNode("Camera2D"))
 			{
+				var camera = (Camera2D)GetNode("Camera2D");
 				RemoveChild(camera);
 				camera.Position = Position;
 				GetParent().AddChild(camera);
@@ -29,11 +30,12 @@ public class Agent : Sprite
 				var tween = new Tween();
 				GetParent().AddChild(tween);
 				tween.InterpolateProperty(camera, "zoom",
-					camera.Zoom, new Vector2(2.5f, 2.5f), 60,
+					camera.Zoom, new Vector2(2f, 2f), 30,
 					Tween.TransitionType.Quad, Tween.EaseType.InOut);
 				tween.Start();
 			}
-		} else if (IsMoving)
+		}
+		else if (IsMoving)
 		{
 			var speed = 24 * 8 * delta;
 			var target = new Vector2(X * 24, Y * 24);
@@ -107,5 +109,15 @@ public class Agent : Sprite
 		AP += Math.Max(1, APRegeneration);
 		foreach (var effect in StatusEffects.ToArray())
 			effect.OnTurn(null, this);
+	}
+	
+	public void BeginFire()
+	{
+		((Particles2D)GetNode("FireEffect")).Emitting = true;
+	}
+	
+	public void EndFire()
+	{
+		((Particles2D)GetNode("FireEffect")).Emitting = false;
 	}
 }
