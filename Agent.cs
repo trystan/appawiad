@@ -18,6 +18,7 @@ public class Agent : Sprite
 	public override void _Process(float delta)
 	{
 		if (HP < 1) {
+			EndFire();
 			QueueFree();
 			
 			if (HasNode("Camera2D"))
@@ -113,11 +114,13 @@ public class Agent : Sprite
 	
 	public void BeginFire()
 	{
-		((Particles2D)GetNode("FireEffect")).Emitting = true;
+		if (HP > 0)
+			((Particles2D)GetNode("FireEffect")).Emitting = true;
 	}
 	
 	public void EndFire()
 	{
-		((Particles2D)GetNode("FireEffect")).Emitting = false;
+		if (HP > 0)
+			((Particles2D)GetNode("FireEffect")).Emitting = false;
 	}
 }

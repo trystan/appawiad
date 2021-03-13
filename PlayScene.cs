@@ -349,6 +349,19 @@ public class Catalog
 		return constructors[Globals.Random.Next(constructors.Length)](x, y);
 	}
 	
+	public Agent NewDemon(int x, int y)
+	{ 
+		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 25, 2);
+		agent.HP = 20;
+		agent.HPMax = 20;
+		agent.ATK = 5;
+		agent.DEF = 5;
+		agent.DisplayName = "demon";
+		agent.Team = "demon";
+		agent.Tags = new List<AgentTag> { AgentTag.Demon };
+		return agent;
+	}
+	
 	public Agent NewGobbo(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 31, 5);
@@ -356,7 +369,7 @@ public class Catalog
 		agent.HPMax = 6;
 		agent.ATK = 2;
 		agent.DEF = 2;
-		agent.DisplayName = "gobbo";
+		agent.DisplayName = "goblin";
 		agent.Team = "gobbos";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
 		return agent;
@@ -567,9 +580,9 @@ public class MoveBy : ICommand
 		if (other != null)
 		{
 			var attack = new Attack(agent, other);
-			foreach (var effect in agent.StatusEffects)
+			foreach (var effect in agent.StatusEffects.ToArray())
 				effect.ParticipateAsAttacker(attack);
-			foreach (var effect in other.StatusEffects)
+			foreach (var effect in other.StatusEffects.ToArray())
 				effect.ParticipateAsDefender(attack);
 			attack.DoIt();
 			
@@ -703,6 +716,7 @@ public static class Globals
 	public static string TextColorBad { get; } = "#cc3333";
 	
 	public static List<Deity> Deities { get; set; } = new List<Deity>();
+	public static int DeityInteractionCounter { get; set; }
 	
 	public static Agent Player { get; set; }
 	
@@ -785,7 +799,7 @@ public static class Globals
 		
 		while (archetypes.Any() 
 			&& domains.Any() 
-			&& Deities.Count < 6)
+			&& Deities.Count < 4)
 		{
 			var deity = new Deity {
 				Name = MakeDeityName(),
@@ -810,6 +824,10 @@ public static class Globals
 		foreach (var deity in Deities)
 		{
 			deity.Finalize(Deities);
+			
+			foreach (var material in deity.GetPreferredMaterials())
+				deity.Likes.Add($"things made of {material}");
+				
 			GD.Print(deity.GetFullTitle());
 		}
 	}
@@ -880,12 +898,38 @@ public class Deity
 	
 	public void OnEvent(IEvent e)
 	{
+		switch (e)
+		{
+			case UsedItem used:
+				foreach (var material in GetPreferredMaterials())
+				{
+					var wasGood = used.PreviousItem?.MadeOf == material;
+					var good = used.Item?.MadeOf == material;
+					if (good && !wasGood)
+						Like(e.Level, used.Agent, $"your {material} {used.Item.DisplayName}");
+					else if (!good && wasGood)
+						Dislike(e.Level, used.Agent, $"your non-{material} {used.Item.DisplayName}");
+				}
+				break;
+		}
+		
 		Archetype.OnEvent(this, e);
 		foreach (var domain in Domains)
 			domain.OnEvent(this, e);
 		
-		if (e is NextTurn turn && Globals.Random.NextDouble() < 0.01)
-			FavorCheck(e.Level, turn.Player);
+		if (e is NextTurn turn)
+		{ 
+			if (FavorPerTeam[turn.Player.Team] < 0)
+			{
+				if (Globals.Random.Next(100) < -FavorPerTeam[turn.Player.Team])
+					FavorCheck(e.Level, turn.Player);
+			}
+			else
+			{
+				if (Globals.Random.Next(100) < FavorPerTeam[turn.Player.Team])
+					FavorCheck(e.Level, turn.Player);
+			}
+		}
 	}
 	
 	public List<StatusEffect> GetInterventions(Level level, Agent agent)
@@ -912,7 +956,7 @@ public class Deity
 				&& agent.StatusEffects.Count < 2
 				&& Globals.Random.NextDouble() < ChanceOfBlessing)
 		{
-			var effect = MakeBlessing(null, agent);
+			var effect = MakeBlessing(level, agent);
 			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
 				candidates.Add(effect);
 		}
@@ -921,7 +965,7 @@ public class Deity
 				&& agent.StatusEffects.Count < 3
 				&& Globals.Random.NextDouble() < ChanceOfBlessing)
 		{
-			var effect = MakeCurse(null, agent);
+			var effect = MakeCurse(level, agent);
 			if (!agent.StatusEffects.Any(e => e.Name == effect.Name))
 				candidates.Add(effect);
 		}
@@ -1003,15 +1047,20 @@ public class Deity
 		if (!FavorPerTeam.ContainsKey(agent.Team))
 			FavorPerTeam[agent.Team] = 0;
 		
+		if (Globals.Random.Next(20) > Globals.DeityInteractionCounter++)
+			return;
+		
+		Globals.DeityInteractionCounter = 0;
+		
 		if (FavorPerTeam[agent.Team] > 0)
 		{
 			if (Globals.Random.Next(100) < FavorPerTeam[agent.Team])
-				FavorPerTeam[agent.Team]--;
+				FavorPerTeam[agent.Team] -= 5;
 		}
 		else if (FavorPerTeam[agent.Team] < 0)
 		{
 			if (Globals.Random.Next(100) < -FavorPerTeam[agent.Team])
-				FavorPerTeam[agent.Team]++;
+				FavorPerTeam[agent.Team] += 5;
 		}
 		
 		var candidates = GetInterventions(level, agent)
@@ -1033,7 +1082,6 @@ public class Deity
 			FavorPerTeam[agent.Team] = 0;
 		FavorPerTeam[agent.Team] += StrengthOfLikes;
 		agent.Messages.Add($"[color={Globals.TextColorGood}]{Name} likes {what}[/color]");
-		GD.Print(Name + " likes team " + agent.Team + " because " + what);
 		FavorCheck(level, agent);
 	}
 	
@@ -1046,7 +1094,6 @@ public class Deity
 			FavorPerTeam[agent.Team] = 0;
 		FavorPerTeam[agent.Team] -= StrengthOfDislikes;
 		agent.Messages.Add($"[color={Globals.TextColorBad}]{Name} dislikes {what}[/color]");
-		GD.Print(Name + " dislikes team " + agent.Team + " because " + what);
 		FavorCheck(level, agent);
 	}
 }
@@ -1163,7 +1210,7 @@ public class Tile
 
 public enum AgentTag
 {
-	Living, Undead, Stationary
+	Living, Undead, Stationary, Demon
 }
 
 public enum ItemType

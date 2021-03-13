@@ -18,13 +18,14 @@ public class TitleScene : CanvasLayer
 			{
 				case (int)KeyList.A:
 					foreach (var deity in Globals.Deities)
-						deity.FavorPerTeam["player"] += 20;
+						deity.FavorPerTeam["player"] += 10;
 					GetTree().ChangeScene("res://PlayScene.tscn");
 					break;
 					
 				case (int)KeyList.B:
 					foreach (var deity in Globals.Deities)
-						deity.FavorPerTeam["player"] += 2;
+						deity.FavorPerTeam["player"] -= 5;
+					foreach (var deity in Globals.Deities)
 					Globals.Player.Weapon = _catalog.NewSword(0,0);
 					Globals.Player.Armor = _catalog.NewHeavyArmor(0,0);
 					Globals.Player.ATK += Globals.Player.Weapon.ATK + Globals.Player.Armor.ATK;
@@ -35,7 +36,10 @@ public class TitleScene : CanvasLayer
 					
 				case (int)KeyList.C:
 					foreach (var deity in Globals.Deities)
-						deity.FavorPerTeam["player"] = Globals.Random.Next(-5,6);
+						deity.FavorPerTeam["player"] += Globals.Random.Next(-20,5);
+					Globals.Player.StatusEffects.Add(new StatusEffect {
+						Name = "Athiest"
+					});
 					Globals.Player.Weapon = _catalog.NewWeapon(0,0);
 					Globals.Player.Armor = _catalog.NewArmor(0,0);
 					Globals.Player.ATK += Globals.Player.Weapon.ATK + Globals.Player.Armor.ATK;

@@ -48,8 +48,11 @@ public class PaladinSetupScene : CanvasLayer
 		{
 			if (_choices.ContainsKey(key.Unicode))
 			{
+				foreach (var other in Globals.Deities)
+					other.FavorPerTeam["player"] -= 5;
+				
 				var deity = _choices[key.Unicode];
-				deity.FavorPerTeam["player"] += 80;
+				deity.FavorPerTeam["player"] += 85;
 				var title = deity.GetShortTitle();
 				
 				foreach (var other in Globals.Deities)

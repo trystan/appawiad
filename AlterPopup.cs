@@ -39,6 +39,44 @@ public class AlterPopup : ColorRect
 	public void Show(Level level, Agent agent)
 	{
 		_actions.Clear();
+		if (agent.StatusEffects.Any(e => e.Name == "Athiest"))
+			ShowForAthiest(level, agent);
+		else
+			ShowForBeliever(level, agent);
+	}
+	
+	public void ShowForAthiest(Level level, Agent agent)
+	{
+		var alterX = -1;
+		var alterY = -1;
+		for (var ox = -1; ox < 2; ox++)
+		{
+			for (var oy = -1; oy < 2; oy++)
+			{
+				if (level.GetTile(agent.X + ox, agent.Y + oy) == Tile.Alter)
+				{
+					alterX = agent.X + ox;
+					alterY = agent.Y + oy;
+				}
+			}
+		}
+		var lines = new List<string> { "== Alter ==" };
+		lines.Add("[b] Become a believer.\n\t(-25 AP, +10 favor with each deity)");
+		_actions['b'] = () => {
+			var effect = agent.StatusEffects.Single(e => e.Name == "Athiest");
+			effect.End(level, agent);
+			agent.AP -= 25;
+			foreach (var d in Globals.Deities)
+				d.FavorPerTeam[agent.Team] += 10;
+			level.SetTile(alterX, alterY, Tile.ExhaustedAlter);
+			agent.Messages.Add($"[color=#ffff99]You are no longer an athiest[/color]");
+		};
+		_text.Text = string.Join("\n", lines);
+		Show();
+	}
+	
+	public void ShowForBeliever(Level level, Agent agent)
+	{
 		var alterX = -1;
 		var alterY = -1;
 		for (var ox = -1; ox < 2; ox++)

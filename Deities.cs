@@ -113,10 +113,7 @@ public class Trickster : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		Description = $"Like all tricksters, {self.Name}'s fondness of tricks and pranks and often gets others into trouble.";
-		
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("illusions");
+		Description = $"Like most tricksters, {self.Name}'s fondness of tricks and pranks often causes trouble.";
 		
 		var rival = deities.ToArray()[Globals.Random.Next(deities.Count())];
 		if (rival != self)
@@ -132,7 +129,7 @@ public class Sleeping : DeityArchetype
 	public Sleeping() : base("sleeping")
 	{
 		NumberOfDomains++;
-		ChanceOfInteracting = 0;
+		ChanceOfInteracting = -10;
 	}
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
@@ -142,7 +139,7 @@ public class Sleeping : DeityArchetype
 		self.AcceptsPrayers = false;
 		self.DonationMultiplier = -1;
 		self.SacrificeCost = -100;
-		Description = $"{self.Name} slumbers forever and does not intervine in the mundane world.";
+		Description = $"{self.Name} slumbers forever and rarely intervines in the mundane world.";
 	}
 }
 
@@ -169,9 +166,9 @@ public class Vengeful : DeityArchetype
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		blessing.TurnsRemaining -= 10;
+		blessing.TurnsRemaining /= 2;
 		
-		if (agent.HP < 6)
+		if (agent.HP < agent.HPMax / 2)
 		{
 			blessing.AddEffect("instant +HP",
 				() => { agent.HP++; },
@@ -181,9 +178,9 @@ public class Vengeful : DeityArchetype
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.TurnsRemaining += 15;
+		curse.TurnsRemaining *= 2;
 		
-		if (agent.HP > 3)
+		if (agent.HP > agent.HPMax / 2)
 		{
 			curse.AddEffect("instant -HP",
 				() => { agent.HP--; },
@@ -208,12 +205,19 @@ public class OfDeath : DeityDomain
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
 		self.FavorPerTeam["undead"] += 50;
-		self.SacrificeCost -= 2;
-		self.Likes.Add("bones");
+		
 		likesKillingLiving = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
-		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
 		if (likesKillingLiving)
+		{
+			self.SacrificeCost /= 4;
 			self.Likes.Add("killing living beings");
+		}
+		else
+		{
+			self.SacrificeCost /= 2;
+		}
+		
+		dislikesKillingUndead = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
 		if (dislikesKillingUndead)
 			self.Dislikes.Add("killing undead beings");
 	}
@@ -222,21 +226,12 @@ public class OfDeath : DeityDomain
 	{
 		switch (e)
 		{
-			case UsedItem used:
-				var wasGood = used.PreviousItem?.MadeOf == "bone";
-				var good = used.Item?.MadeOf == "bone";
-				if (good && !wasGood)
-					self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
-				else if (!good && wasGood)
-					self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
-				break;
-				
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (likesKillingLiving && attack.Attacked.Tags.Contains(AgentTag.Living))
 					self.Like(e.Level, attack.Attacker, "killing the living");
 				if (dislikesKillingUndead && attack.Attacked.Tags.Contains(AgentTag.Undead))
 					self.Dislike(e.Level, attack.Attacker, "killing the undead");
-				if (Globals.Random.NextDouble() < 0.25)
+				if (Globals.Random.NextDouble() < 0.5)
 					self.Like(e.Level, attack.Attacked, "how you died");
 				break;
 		}
@@ -244,14 +239,41 @@ public class OfDeath : DeityDomain
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
+		blessing.AddAttackEffect("+bone weapon ATK", a => {
+			if (a.Attacker.Weapon?.MadeOf == "bone")
+				a.AttackBonus++;
+		});
+		blessing.AddDefendEffect("+bone armor DEF", a => {
+			if (a.Defender.Armor?.MadeOf == "bone")
+				a.DefendBonus++;
+		});
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.AddDefendEffect("-DEF vs undead", a => {
-			if (a.Attacker.Team == "undead")
-				a.DefendBonus--;
-		});
+		var summons = new List<Agent>();
+		var totalTries = 0;
+		while (totalTries++ < 10 && summons.Count < 4)
+		{
+			var ox = 0;
+			var oy = 0;
+			var tries = 0;
+			while (tries++ < 100
+					&& (level.GetTile(agent.X + ox, agent.Y + oy).BumpEffect != TileBumpEffect.None
+						|| level.GetAgent(agent.X + ox, agent.Y + oy) != null))
+			{
+				ox = Globals.Random.Next(-5, 6);
+				oy = Globals.Random.Next(-5, 6);
+			}
+			if (tries < 100)
+				summons.Add(level.Catalog.NewSkeleton(agent.X + ox, agent.Y + oy));
+		}
+		if (summons.Any())
+		{
+			curse.AddEffect("hunted by skeletons",
+					() => summons.ForEach(s => level.Add(s)),
+					() => { });
+		}
 	}
 	
 	public override IEnumerable<string> GetPreferredMaterials()
@@ -275,37 +297,6 @@ public class OfHealth : DeityDomain
 			self.Dislikes.Add("healing undead beings");
 	}
 	
-	public override void OnEvent(Deity self, IEvent e)
-	{
-		if (Globals.Random.NextDouble() > self.Archetype.ChanceOfInteracting)
-			return;
-		
-		switch (e)
-		{
-			case NextTurn turn:
-				if (Globals.Random.NextDouble() < self.Archetype.ChanceOfInteracting)
-				{
-					if (self.PlayerFavor > turn.Player.HP * 5
-						&& Globals.Random.Next(10) < turn.Player.HP)
-					{
-//						TODO
-//						self.PlayerFavor--;
-//						turn.Player.HP++;
-//						turn.Player.Messages.Add($"{self.Name} healed you");
-					}
-					if (self.PlayerFavor > turn.Player.HP * 5
-						&& Globals.Random.Next(20) < turn.Player.AP)
-					{
-//						TODO
-//						self.PlayerFavor--;
-//						turn.Player.AP += 4;
-//						turn.Player.Messages.Add($"{self.Name} has given you a boost of speed");
-					}
-				}
-				break;
-		}
-	}
-	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
 		blessing.AddAttackEffect("+ATK vs undead", a => {
@@ -313,13 +304,18 @@ public class OfHealth : DeityDomain
 				a.AttackBonus++;
 		});
 		
+		var amount = 5;
 		blessing.AddEffect("+HP max",
-			() => { agent.HPMax++; agent.HP++; },
-			() => { agent.HPMax--; agent.HP = Math.Min(agent.HP, agent.HPMax); });
+			() => { agent.HPMax += amount; agent.HP += amount; },
+			() => { agent.HPMax -= amount; agent.HP = Math.Min(agent.HP, agent.HPMax); });
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
+		curse.AddAttackEffect("-ATK vs undead", a => {
+			if (a.Defender.Team == "undead")
+				a.AttackBonus--;
+		});
 		curse.AddDefendEffect("-DEF vs undead", a => {
 			if (a.Attacker.Team == "undead")
 				a.DefendBonus--;
@@ -385,21 +381,6 @@ public class OfLove : DeityDomain
 	}
 }
 
-public class OfWriting : DeityDomain
-{
-	public OfWriting() : base("writing")
-	{
-	}
-	
-	public override void Finalize(Deity self, IEnumerable<Deity> deities)
-	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("reading scrolls");
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
-			self.Dislikes.Add("destroying scrolls");
-	}
-}
-
 public class OfCommerce : DeityDomain
 {
 	bool likesMoney;
@@ -414,24 +395,9 @@ public class OfCommerce : DeityDomain
 		
 		likesMoney = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
 		if (likesMoney)
-			self.Likes.Add("money");
-	}
-	
-	public override void OnEvent(Deity self, IEvent e)
-	{
-		switch (e)
 		{
-			case NextTurn turn:
-				if (Globals.Random.NextDouble() > self.Archetype.ChanceOfInteracting
-					&& self.PlayerFavor > turn.Player.Money
-					&& Globals.Random.Next(50) < turn.Player.Money)
-				{
-//					TODO
-//					self.PlayerFavor--;
-//					turn.Player.Money++;
-//					turn.Player.Messages.Add($"{self.Name} gave you money");
-				}
-				break;
+			self.DonationMultiplier++;
+			self.Likes.Add("money");
 		}
 	}
 	
@@ -440,19 +406,32 @@ public class OfCommerce : DeityDomain
 	{
 		if (totalGiven < 25)
 		{
-			blessing.AddEffect("instant +money",
-				() => { totalGiven++; agent.Money++; },
-				() => { });
+			blessing.AddTurnEffect("+money",
+				() => { totalGiven++; agent.Money++; });
 		}
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		if (agent.Money > 0)
+		curse.AddTurnEffect("-money",
+			() => { if (agent.Money > 0) { totalGiven--; agent.Money--; } });
+	}
+	
+	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
+	{
+		if (totalGiven < 25)
 		{
-			curse.AddEffect("instant -money",
-				() => { totalGiven--; agent.Money--; },
-				() => { });
+			var gift = new StatusEffect {
+				Name = null,
+				TurnsRemaining = 1
+			};
+			gift.AddEffect(null, () => {
+				var amount = 2 + Globals.Random.Next(5) + Globals.Random.Next(5);
+				totalGiven += amount;
+				agent.Money += amount;
+				agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] gives you a gift of [color=#ffff33]${amount}[/color]");
+			}, () => { });
+			yield return gift;
 		}
 	}
 	
@@ -485,20 +464,6 @@ public class OfWar : DeityDomain
 	{
 		switch (e)
 		{
-			case NextTurn turn:
-				if (Globals.Random.NextDouble() < self.Archetype.ChanceOfInteracting
-					&& Globals.Random.Next(100) < self.PlayerFavor
-					&& self.PlayerFavor > 10
-					&& turn.Player.APRegeneration < 12)
-				{
-//					TODO
-//					turn.Player.APRegeneration++;
-//					self.PlayerFavor -= 10;
-//					turn.Player.Messages.Add($"You feel faster.");
-//					turn.Player.Messages.Add($"{self.Name} has improved your AP regeneration.");
-				}
-				break;
-				
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (likesKillingEnemies && attack.Attacked.Team != attack.Attacker.Team)
 					self.Like(e.Level, attack.Attacker, "killing enemies");
@@ -610,12 +575,12 @@ public class OfAttack : DeityDomain
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		blessing.AddAttackEffect("+ATK vs all", a => a.AttackBonus += 2);
+		blessing.AddAttackEffect("+2 ATK vs all", a => a.AttackBonus += 2);
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.AddAttackEffect("-ATK vs all", a => a.AttackBonus -= 2);
+		curse.AddAttackEffect("-2 ATK vs all", a => a.AttackBonus -= 2);
 	}
 	
 	int _chanceOfItem = 16;
@@ -684,12 +649,12 @@ public class OfProtection : DeityDomain
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		blessing.AddAttackEffect("+DEF vs all", a => a.DefendBonus += 2);
+		blessing.AddDefendEffect("+2 DEF vs all", a => a.DefendBonus += 2);
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.AddAttackEffect("-DEF vs all", a => a.DefendBonus -= 2);
+		curse.AddAttackEffect("-2 DEF vs all", a => a.DefendBonus -= 2);
 	}
 	
 	int _chanceOfItem = 16;
@@ -742,27 +707,55 @@ public class OfStorms : DeityDomain
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		blessing.AddEffect("instant +AP",
-			() => { agent.AP += 50; },
-			() => { });
+		blessing.AddAttackEffect("stun attack", a => {
+			var stun  = new StatusEffect {
+				Name = "Stunned",
+				TurnsRemaining = 10
+			};
+			stun.AddTurnEffect("-2d4 AP each turn", () => { agent.AP -= 2 + Globals.Random.Next(4) + Globals.Random.Next(4); });
+			stun.Begin(level, a.Defender);
+		});
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.AddEffect("instant -AP",
-			() => { agent.AP -= 20; },
-			() => { });
+		curse.AddTurnEffect("-2d4 AP each turn", () => { agent.AP -= 2 + Globals.Random.Next(4) + Globals.Random.Next(4); });
 	}
 	
+	int _chanceOfStun = 16;
 	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
 	{
-		var power = new StatusEffect {
-			Name = $"the subtle power of [color={Globals.TextColorGood}]{self.Name}[/color]",
-			TurnsRemaining = 10
-		};
-		power.AddTurnEffect("+AP", () => agent.AP += 4);
-		
-		yield return power;
+		if (Globals.Random.Next(100) < _chanceOfStun)
+		{
+			var protection = new StatusEffect {
+				Name = $"[color={Globals.TextColorGood}]{self.Name}'s[/color] stunning protection",
+				TurnsRemaining = 10
+			};
+			protection.AddEffect(null, () => { _chanceOfStun /= 2; }, () => {});
+			protection.AddTurnEffect(null, 
+				() => {
+					for (var ox = -2; ox < 3; ox++)
+					{
+						for (var oy = -2; oy < 3; oy++)
+						{
+							var other = level.GetAgent(agent.X + ox, agent.Y + oy);
+							if (other != null 
+								&& other != agent
+								&& other.StatusEffects.Any(e => e.Name == "Stunned"))
+							{
+								var stun  = new StatusEffect {
+									Name = "Stunned",
+									TurnsRemaining = 10
+								};
+								stun.AddTurnEffect("-AP", () => { other.AP -= 5; });
+								stun.Begin(level, other);
+								agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] stuns {other.DisplayName}");
+							}
+						}
+					}
+				});
+			yield return protection;
+		}
 	}
 }
 
@@ -779,38 +772,76 @@ public class OfAgriculture : DeityDomain
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		blessing.AddEffect("+AP regen",
+		blessing.AddEffect("+AP regeneration",
 			() => { agent.APRegeneration += 3; },
 			() => { agent.APRegeneration -= 3; });
 	}
 	
 	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
 	{
-		curse.AddEffect("-AP regen",
+		curse.AddEffect("-AP regeneration",
 			() => { agent.APRegeneration -= 2; },
 			() => { agent.APRegeneration += 2; });
 	}
 }
 
-public class OfFire : DeityDomain
+public class OfDemons : DeityDomain
 {
-	public OfFire() : base("fire")
+	public OfDemons() : base("demons")
 	{
 	}
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("fire");
+		self.FavorPerTeam["player"] -= 25;
+		self.Dislikes.Add("you");
+	}
+	
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
+	{
+	}
+	
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		var ox = 0;
+		var oy = 0;
+		var tries = 0;
+		while (tries++ < 100
+				&& (level.GetTile(agent.X + ox, agent.Y + oy).BumpEffect != TileBumpEffect.None
+					|| level.GetAgent(agent.X + ox, agent.Y + oy) != null))
+		{
+			ox = Globals.Random.Next(-5, 6);
+			oy = Globals.Random.Next(-5, 6);
+		}
+		if (tries < 100)
+		{
+			var demon = level.Catalog.NewDemon(agent.X + ox, agent.Y + oy);
+			curse.TurnsRemaining += 10;
+			curse.AddEffect("hunted by a demon",
+				() => level.Add(demon),
+				() => { if (demon.HP > 0) { level.Remove(demon); } } );
+		}
+	}
+}
+
+public class OfTheSun : DeityDomain
+{
+	public OfTheSun() : base("the sun")
+	{
+	}
+	
+	public override void Finalize(Deity self, IEnumerable<Deity> deities)
+	{
 		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
 			self.Dislikes.Add("rain");
 	}
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		blessing.AddAttackEffect("+ATK vs plants", a => {
-			if (a.Defender.Team == "plants")
-				a.AttackBonus++;
+		blessing.AddAttackEffect("fire attack", a => {
+			var onFire = GetFire(a.Defender);
+			if (!a.Defender.StatusEffects.Any(s => s.Name == onFire.Name))
+				onFire.Begin(level, a.Defender);
 		});
 	}
 	
@@ -829,15 +860,22 @@ public class OfFire : DeityDomain
 	
 	public override IEnumerable<StatusEffect> GetBadInterventions(Deity self, Level level, Agent agent)
 	{
-		var disliked = new StatusEffect {
-			Name = $"disliked by [color={Globals.TextColorBad}]{self.Name}[/color]",
-			TurnsRemaining = 10
-		};
-		disliked.AddEffect(null,
-			() => GetFire(agent).Begin(level, agent),
-			() => { });
-		
-		yield return disliked;
+		var onFire = GetFire(agent);
+		if (!agent.StatusEffects.Any(s => s.Name == onFire.Name))
+		{
+			var disliked = new StatusEffect {
+				Name = null,
+				TurnsRemaining = 1
+			};
+			disliked.AddEffect(null,
+				() => {
+					agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] sets you on fire");
+					onFire.Begin(level, agent);
+				},
+				() => { });
+			
+			yield return disliked;
+		}
 	}
 	
 	int _chanceOfFire = 16;
@@ -852,15 +890,20 @@ public class OfFire : DeityDomain
 			fire.AddEffect(null, () => { _chanceOfFire /= 2; }, () => {});
 			fire.AddTurnEffect(null, 
 				() => {
-					for (var ox = -3; ox < 3; ox++)
+					for (var ox = -2; ox < 3; ox++)
 					{
-						for (var oy = -3; oy < 3; oy++)
+						for (var oy = -2; oy < 3; oy++)
 						{
 							var other = level.GetAgent(agent.X + ox, agent.Y + oy);
-							if (other != null && other != agent && Globals.Random.NextDouble() < 0.5)
+							if (other != null
+								&& other != agent)
 							{
-								GetFire(other).Begin(level, other);
-								agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] sets {other.DisplayName} on fire");
+								var onFire = GetFire(other);
+								if (!other.StatusEffects.Any(e => e.Name == onFire.Name))
+								{
+									onFire.Begin(level, other);
+									agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] sets {other.DisplayName} on fire");
+								}
 							}
 						}
 					}
@@ -876,52 +919,37 @@ public class OfFire : DeityDomain
 	}
 }
 
-public class OfStars : DeityDomain
+public class OfTheStars : DeityDomain
 {
-	public OfStars() : base("stars")
+	public OfTheStars() : base("the stars")
 	{
 	}
 	
-	public override void Finalize(Deity self, IEnumerable<Deity> deities)
+	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
 	{
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes)
-			self.Likes.Add("being outdoors");
-		if (Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes)
-			self.Dislikes.Add("being indoors");
+		blessing.AddEffect("instant +AP",
+			() => { agent.AP += 50; },
+			() => { });
 	}
 	
-	int _chanceOfStun = 16;
+	public override void AddToCurse(Deity self, Level level, Agent agent, StatusEffect curse)
+	{
+		curse.AddEffect("instant -AP",
+			() => { agent.AP -= 20; },
+			() => { });
+	}
+	
 	public override IEnumerable<StatusEffect> GetGoodInterventions(Deity self, Level level, Agent agent)
 	{
-		if (Globals.Random.Next(100) < _chanceOfStun)
-		{
-			var protection = new StatusEffect {
-				Name = $"{self.Name}'s sunning protection",
-				TurnsRemaining = 10
-			};
-			protection.AddEffect(null, () => { _chanceOfStun /= 2; }, () => {});
-			protection.AddTurnEffect(null, 
-				() => {
-					for (var ox = -3; ox < 3; ox++)
-					{
-						for (var oy = -3; oy < 3; oy++)
-						{
-							var other = level.GetAgent(agent.X + ox, agent.Y + oy);
-							if (other != null && other != agent && Globals.Random.NextDouble() < 0.5)
-							{
-								var stun  = new StatusEffect {
-									Name = "Stunned",
-									TurnsRemaining = 10,
-								};
-								stun.AddTurnEffect("-AP", () => { other.AP -= 1; });
-								stun.Begin(level, other);
-								agent.Messages.Add($"[color={Globals.TextColorGood}]{self.Name}[/color] stuns {other.DisplayName}");
-							}
-						}
-					}
-				});
-			yield return protection;
-		}
+		var power = new StatusEffect {
+			Name = $"[color={Globals.TextColorGood}]{self.Name}'s[/color] power",
+			TurnsRemaining = 10
+		};
+		power.AddEffect("+AP regen",
+			() => agent.APRegeneration += 5,
+			() => agent.APRegeneration -= 5);
+		
+		yield return power;
 	}
 }
 
@@ -938,8 +966,6 @@ public class OfForests : DeityDomain
 	{
 		self.FavorPerTeam["plants"] += 40;
 		likesUsingWood = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
-		if (likesUsingWood)
-			self.Likes.Add("using wooden items");
 		dislikesKillingTrees = Globals.Random.NextDouble() < self.Archetype.ChanceOfDislikes;
 		if (dislikesKillingTrees)
 			self.Dislikes.Add("killing plants");
@@ -949,18 +975,6 @@ public class OfForests : DeityDomain
 	{
 		switch (e)
 		{
-			case UsedItem used:
-				if (likesUsingWood)
-				{
-					var wasGood = used.PreviousItem?.MadeOf == "wood";
-					var good = used.Item?.MadeOf == "wood";
-					if (good && !wasGood)
-						self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
-					else if (!good && wasGood)
-						self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
-				}
-				break;
-				
 			case DidAttack attack when attack.Attacked.HP < 1:
 				if (dislikesKillingTrees && attack.Attacked.Team == "plants")
 					self.Dislike(e.Level, attack.Attacker, "killing plants");
@@ -992,7 +1006,8 @@ public class OfForests : DeityDomain
 	
 	public override IEnumerable<string> GetPreferredMaterials()
 	{
-		yield return "wood";
+		if (likesUsingWood)
+			yield return "wood";
 	}
 }
 
@@ -1008,38 +1023,7 @@ public class OfMountains : DeityDomain
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
 		likesUsingStone = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
-		if (likesUsingStone)
-			self.Likes.Add("using stone items");
 		likesUsingMetal = Globals.Random.NextDouble() < self.Archetype.ChanceOfLikes;
-		if (likesUsingMetal)
-			self.Likes.Add("using metal items");
-	}
-	
-	public override void OnEvent(Deity self, IEvent e)
-	{
-		switch (e)
-		{
-			case UsedItem used:
-				if (likesUsingStone)
-				{
-					var wasGood = used.PreviousItem?.MadeOf == "stone";
-					var good = used.Item?.MadeOf == "stone";
-					if (good && !wasGood)
-						self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
-					else if (!good && wasGood)
-						self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
-				}
-				if (likesUsingMetal)
-				{
-					var wasGood = used.PreviousItem?.MadeOf == "metal";
-					var good = used.Item?.MadeOf == "metal";
-					if (good && !wasGood)
-						self.Like(e.Level, used.Agent, "your " + used.Item.DisplayName);
-					else if (!good && wasGood)
-						self.Dislike(e.Level, used.Agent, "your " + used.Item.DisplayName);
-				}
-				break;
-		}
 	}
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
@@ -1068,7 +1052,9 @@ public class OfMountains : DeityDomain
 	
 	public override IEnumerable<string> GetPreferredMaterials()
 	{
-		yield return "stone";
-		yield return "metal";
+		if (likesUsingStone)
+			yield return "stone";
+		if (likesUsingMetal)
+			yield return "metal";
 	}
 }

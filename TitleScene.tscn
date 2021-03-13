@@ -102,7 +102,7 @@ margin_right = -10.0
 margin_bottom = -10.0
 text = "Athiests start with poor reputation with all deities.
 They begin with random equipment.
-Deities have less effect on athiests.
+They must give up their athiest ways to use an alter.
 -- press [c] to play as an athiest  --"
 __meta__ = {
 "_edit_use_anchors_": false
