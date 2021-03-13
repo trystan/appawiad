@@ -12,6 +12,8 @@ public class Level : Node2D
 	public List<Agent> Agents { get; set; } = new List<Agent>();
 	public List<Item> Items { get; set; } = new List<Item>();
 	public int Depth { get; set; }
+	public int Width => Tiles.GetLength(0);
+	public int Height => Tiles.GetLength(1);
 	
 	public override void _Ready()
 	{
@@ -101,6 +103,11 @@ public class Level : Node2D
 	{
 		Tiles[x,y] = tile;
 		_tileMap.SetCell(x, y, tile.RandomIndex());
+	}
+	
+	public Item GetItem(int x, int y)
+	{
+		return Items.FirstOrDefault(a => a.X == x && a.Y == y);
 	}
 	
 	public Agent GetAgent(int x, int y)

@@ -49,7 +49,7 @@ margin_top = 10.0
 margin_right = -10.0
 margin_bottom = -10.0
 text = "Priests start with a good reputation with all deities.
-They begin with poor equipment.
+They begin with no equipment.
 -- press [a] to play as a priest --"
 __meta__ = {
 "_edit_use_anchors_": false
@@ -74,7 +74,7 @@ margin_left = 50.0
 margin_top = 10.0
 margin_right = -10.0
 margin_bottom = -10.0
-text = "Paladins start with excellent reputation with their chosen deity.
+text = "Paladins start with excellent reputation with their chosen deity and poor reputation with all others..
 They begin with excellent equipment.
 -- press [b] to play as a paladin  --"
 __meta__ = {

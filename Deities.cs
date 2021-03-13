@@ -154,6 +154,9 @@ public class Vengeful : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
+		foreach (var key in self.FavorPerTeam.Keys)
+			self.FavorPerTeam[key] -= 10;
+		
 		self.ChanceOfBlessing -= 0.25f;
 		self.ChanceOfCurse += 0.25f;
 		self.StrengthOfLikes /= 2;
@@ -849,7 +852,7 @@ public class OfTheSun : DeityDomain
 	{
 		var onFire = new StatusEffect {
 			Name = "[color=#ff0000]On fire![/color]",
-			TurnsRemaining = 5
+			TurnsRemaining = 3
 		};
 		onFire.AddEffect("-HP",
 			() => target.BeginFire(),

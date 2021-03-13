@@ -11,6 +11,7 @@ public class PlayScene : Node2D
 	HelpPopup _helpPopup;
 	AlterPopup _alterPopup;
 	MessagesPopup _messagePopup;
+	Control _retryPopup;
 	Camera2D _camera;
 	
 	Level _level;
@@ -25,6 +26,7 @@ public class PlayScene : Node2D
 		_helpPopup = (HelpPopup)GetNode("CanvasLayer/HelpPopup");
 		_alterPopup = (AlterPopup)GetNode("CanvasLayer/AlterPopup");
 		_messagePopup = (MessagesPopup)GetNode("CanvasLayer/MessagesPopup");
+		_retryPopup = (Control)GetNode("CanvasLayer/RetryPopup");
 		
 		_camera = (Camera2D)GetNode("Camera2D");
 		
@@ -50,10 +52,11 @@ public class PlayScene : Node2D
 		{
 			var x = -1;
 			var y = -1;
-			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None)
+			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None
+				|| _level.GetItem(x, y) != null)
 			{
-				x = Globals.Random.Next(32);
-				y = Globals.Random.Next(32);
+				x = Globals.Random.Next(_level.Width);
+				y = Globals.Random.Next(_level.Height);
 			}
 			_level.Add(_level.Catalog.NewItem(x, y));
 		}
@@ -62,10 +65,11 @@ public class PlayScene : Node2D
 		{
 			var x = -1;
 			var y = -1;
-			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None)
+			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None
+				|| _level.GetAgent(x, y) != null)
 			{
-				x = Globals.Random.Next(32);
-				y = Globals.Random.Next(32);
+				x = Globals.Random.Next(_level.Width);
+				y = Globals.Random.Next(_level.Height);
 			}
 			_level.Add(_level.Catalog.NewEnemy(x, y));
 		}
@@ -84,7 +88,7 @@ public class PlayScene : Node2D
 			{
 				_player.RemoveChild(_camera);
 				_level.Remove(_player, false);
-				_level.Setup(32, 32);
+				_level.Setup(32 + _level.Depth * 2, 32 + _level.Depth * 2);
 				_level.Add(_player);
 				_player.AddChild(_camera);
 				_camera.Current = true;
@@ -127,7 +131,7 @@ public class PlayScene : Node2D
 				commands.Add(new MoveBy(0, 1), 5);
 		}
 		
-		commands.Add(new MoveBy(0, 0), 5);
+		commands.Add(new MoveBy(0, 0), agent.Tags.Contains(AgentTag.Waits) ? 15 : 5);
 		
 		foreach (var key in commands.Keys.ToArray())
 		{
@@ -178,6 +182,15 @@ public class PlayScene : Node2D
 		{
 			switch (key.Scancode)
 			{
+				case (int)KeyList.Escape:
+					if (_player.HP < 1)
+					{
+						Globals.Reset();
+						GetTree().ChangeScene("res://TitleScene.tscn");
+					}
+					GetTree().SetInputAsHandled();
+					break;
+				
 				case (int)KeyList.Tab:
 					_deityPopup.Show();
 					foreach (var a in _level.Agents)
@@ -262,7 +275,7 @@ public class PlayScene : Node2D
 		lines.AddRange(new [] {
 			"",
 			"[g] Here:",
-			_level.Items.FirstOrDefault(i => i.X == _player.X && i.Y == _player.Y)?.DisplayName ?? "-none-",
+			_level.GetItem(_player.X, _player.Y)?.DisplayName ?? "-none-",
 			"",
 			"[table=2]",
 			"[cell][tab] Deity[/cell][cell]Favor[/cell]"
@@ -286,6 +299,9 @@ public class PlayScene : Node2D
 				|| _helpPopup.Visible
 				|| _alterPopup.Visible)
 			return;
+		
+		if (_player.HP < 1 && !_retryPopup.Visible)
+			_retryPopup.Show();
 		
 		var ticks = 0;
 		while (_level.Agents.Any()
@@ -442,7 +458,7 @@ public class Catalog
 		agent.DEF = 1;
 		agent.DisplayName = "spider";
 		agent.Team = "critters";
-		agent.Tags = new List<AgentTag> { AgentTag.Living };
+		agent.Tags = new List<AgentTag> { AgentTag.Living, AgentTag.Waits };
 		agent.HP = 3;
 		agent.APRegeneration = 10;
 		return agent;
@@ -685,7 +701,7 @@ public class PickupItem : ICommand
 	public void Do(Level level, Agent agent)
 	{
 		agent.AP -= 10;
-		var item = level.Items.FirstOrDefault(i => i.X == agent.X && i.Y == agent.Y);
+		var item = level.GetItem(agent.X, agent.Y);
 		if (item == null)
 			return;
 		Do(level, agent, item);
@@ -759,6 +775,14 @@ public static class Globals
 	
 	static Globals()
 	{
+		Reset();
+	}
+	
+	public static void Reset()
+	{
+		OnEventCallbacks.Clear();
+		Player = null;
+		Deities.Clear();
 		MakeDeities();
 	}
 	
@@ -937,6 +961,12 @@ public class Deity
 	{
 		switch (e)
 		{
+			case WentDownStairs down:
+				if (!FavorPerTeam.ContainsKey(down.Agent.Team))
+					FavorPerTeam[down.Agent.Team] = 0;
+				FavorPerTeam[down.Agent.Team] -= 5;
+				break;
+				
 			case UsedItem used:
 				foreach (var material in GetPreferredMaterials())
 				{
@@ -1248,7 +1278,7 @@ public class Tile
 
 public enum AgentTag
 {
-	Living, Undead, Stationary, Demon
+	Living, Undead, Stationary, Demon, Waits
 }
 
 public enum ItemType

@@ -172,3 +172,29 @@ text = "Some text"
 __meta__ = {
 "_edit_use_anchors_": false
 }
+
+[node name="RetryPopup" type="ColorRect" parent="CanvasLayer"]
+visible = false
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+margin_left = -300.0
+margin_top = -100.0
+margin_right = 300.0
+margin_bottom = -50.0
+color = Color( 0.0313726, 0.0313726, 0.0313726, 1 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Summary" type="Label" parent="CanvasLayer/RetryPopup"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 10.0
+margin_top = 10.0
+margin_right = -10.0
+margin_bottom = -10.0
+text = "-- You have died. Press [escape] to try again --"
+align = 1
+valign = 1
