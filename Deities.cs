@@ -154,7 +154,7 @@ public class Vengeful : DeityArchetype
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		foreach (var key in self.FavorPerTeam.Keys)
+		foreach (var key in self.FavorPerTeam.Keys.ToArray())
 			self.FavorPerTeam[key] -= 10;
 		
 		self.ChanceOfBlessing -= 0.25f;
@@ -164,7 +164,7 @@ public class Vengeful : DeityArchetype
 		self.AcceptsPrayers = true;
 		self.DonationMultiplier = 1;
 		self.SacrificeCost = 10;
-		Description = "A vengeful deity is easy to displease but often intervenes to help those who worship them.";
+		Description = "A vengeful deity is easy to displease but will intervene to help those who worship them.";
 	}
 	
 	public override void AddToBlessing(Deity self, Level level, Agent agent, StatusEffect blessing)
@@ -591,15 +591,15 @@ public class OfAttack : DeityDomain
 	{
 		if (Globals.Random.Next(100) < _chanceOfItem)
 		{
-			var armor = new StatusEffect {
+			var gift = new StatusEffect {
 				Name = null,
 				TurnsRemaining = 1
 			};
-			armor.AddEffect(null, 
+			gift.AddEffect(null, 
 				() => {
 					_chanceOfItem /= 2;
 					var item = level.Catalog.NewWeapon(0,0);
-					item.ATK = 3;
+					item.ATK += 1;
 					var materials = self.GetPreferredMaterials().ToArray();
 					if (materials.Any())
 					{
@@ -613,7 +613,7 @@ public class OfAttack : DeityDomain
 					new PickupItem().Do(level, agent, item);
 				},
 				() => {});
-			yield return armor;
+			yield return gift;
 		}
 	}
 }
@@ -665,15 +665,15 @@ public class OfProtection : DeityDomain
 	{
 		if (Globals.Random.Next(100) < _chanceOfItem)
 		{
-			var armor = new StatusEffect {
+			var gift = new StatusEffect {
 				Name = null,
 				TurnsRemaining = 1
 			};
-			armor.AddEffect(null, 
+			gift.AddEffect(null, 
 				() => {
 					_chanceOfItem /= 2;
 					var item = level.Catalog.NewArmor(0,0);
-					item.DEF = 3;
+					item.DEF += 1;
 					var materials = self.GetPreferredMaterials().ToArray();
 					if (materials.Any())
 					{
@@ -687,7 +687,7 @@ public class OfProtection : DeityDomain
 					new PickupItem().Do(level, agent, item);
 				},
 				() => {});
-			yield return armor;
+			yield return gift;
 		}
 	}
 }
@@ -796,7 +796,7 @@ public class OfDemons : DeityDomain
 	
 	public override void Finalize(Deity self, IEnumerable<Deity> deities)
 	{
-		self.FavorPerTeam["player"] -= 25;
+		self.FavorPerTeam["player"] -= 10;
 		self.Dislikes.Add("you");
 	}
 	
@@ -863,6 +863,9 @@ public class OfTheSun : DeityDomain
 	
 	public override IEnumerable<StatusEffect> GetBadInterventions(Deity self, Level level, Agent agent)
 	{
+		if (Globals.Random.Next(100) < -self.FavorPerTeam[agent.Team])
+			yield break;
+		
 		var onFire = GetFire(agent);
 		if (!agent.StatusEffects.Any(s => s.Name == onFire.Name))
 		{

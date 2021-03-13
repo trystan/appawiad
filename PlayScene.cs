@@ -37,7 +37,7 @@ public class PlayScene : Node2D
 		Globals.OnEventCallbacks.Add(OnEvent);
 		
 		_player = Globals.Player ?? catalog.NewPlayer(3, 4);
-		_player.Messages.Add("Welcome!");
+		_player.Messages.Add("[color=#ccffff][b]Welcome![/b] You may want to press [?] for help or [tab] to see the current deities.[/color]");
 		
 		_level.Add(_player);
 		RemoveChild(_camera);
@@ -198,21 +198,11 @@ public class PlayScene : Node2D
 					GetTree().SetInputAsHandled();
 					break;
 				
-				case (int)KeyList.C:
-					_characterPopup.Show(_player);
-					GetTree().SetInputAsHandled();
-					break;
-				
-				case (int)KeyList.H:
-					_helpPopup.Show();
-					GetTree().SetInputAsHandled();
-					break;
-				
 				case (int)KeyList.M:
 					_messagePopup.Show(_level, _player);
 					GetTree().SetInputAsHandled();
 					break;
-					
+				
 				case (int)KeyList.G:
 					_nextPlayerCommand = new PickupItem();
 					GetTree().SetInputAsHandled();
@@ -238,6 +228,18 @@ public class PlayScene : Node2D
 					GetTree().SetInputAsHandled();
 					break;
 			}
+			switch ((char)key.Unicode)
+			{
+				case '?':
+					_helpPopup.Show();
+					GetTree().SetInputAsHandled();
+					break;
+				
+				case '@':
+					_characterPopup.Show(_player);
+					GetTree().SetInputAsHandled();
+					break;
+			}
 		}
 		
 		UpdateUI();
@@ -246,7 +248,7 @@ public class PlayScene : Node2D
 	public void UpdateUI()
 	{
 		var lines = new List<string> {
-			$"[c] {_player.DisplayName}",
+			$"[@] {_player.DisplayName}",
 			$"HP {_player.HP}/{_player.HPMax}   AP {_player.AP} (+{_player.APRegeneration})   ${_player.Money}",
 			"Armor: " + (_player.Armor?.DisplayName ?? "-none-"),
 			"Weapon: " + (_player.Weapon?.DisplayName ?? "-none-"),
@@ -284,7 +286,7 @@ public class PlayScene : Node2D
 			lines.Add($"[cell]{deity.GetShortTitle()}[/cell][cell]{deity.PlayerFavor}[/cell]]");
 		lines.Add("[/table]");
 		var skipCount = Math.Max(0, _player.Messages.Count - 10);
-		lines.Add("\n[h] Help\n\n[m] Messages:");
+		lines.Add("\n[?] Help\n\n[m] Messages:");
 		lines.AddRange(_player.Messages.Skip(skipCount));
 		
 		_sidebar.BbcodeText = string.Join("\n", lines);
@@ -794,47 +796,71 @@ public static class Globals
 			callback(e);
 	}
 	
-	private static string MakeDeityName()
+	private static string vowels;
+	private static string consonants;
+	private static void MakeLanguage()
 	{
-		var vowels = "aeiou";
-		var consonants = "bcdfghjklmnpqrstvwxz";
+		vowels = "aeiou";
+		consonants = "bcdfghjklmnpqrstvwxz";
 		if (Random.NextDouble() < 0.66)
 			vowels += "y";
-		else
+		if (Random.NextDouble() < 0.33)
 			consonants += "y";
 		
 		for (var i = 0; i < 6; i++)
 		{
 			var index = Random.Next(consonants.Length);
+			consonants += consonants[index];
+			
+			index = Random.Next(consonants.Length);
 			consonants = consonants.Substring(0, index) + consonants.Substring(index+1);
 		}
-		for (var i = 0; i < 6; i++)
-		{
-			var index = Random.Next(consonants.Length);
-			consonants += consonants[index];
-		}
-		
+	}
+	
+	private static string MakeDeityName()
+	{
+		var names = new List<string>();
+		for (var i = 0; i < 10; i++)
+			names.Add(MakeDeityName1());
+		var longest = names.Max(n => n.Length);
+		var shortest = names.Min(n => n.Length);
+		var good = names
+			.Where(n => n.Length != longest)
+			.Where(n => n.Length != shortest)
+			.Where(n => n.GroupBy(c => c).Max(g => g.Count()) < n.Length / 2)
+			.ToArray();
+		if (good.Any())
+			return good[Random.Next(good.Length)];
+		else
+			return MakeDeityName1();
+	}
+	
+	private static string MakeDeityName1()
+	{
 		var name = "";
-		if (Random.NextDouble() < 0.5)
+		if (Random.NextDouble() < 0.33)
 			name += vowels[Random.Next(vowels.Length)];
-		while (name.Length < 4)
+		
+		do
 		{
 			name += consonants[Random.Next(consonants.Length)];
 			name += vowels[Random.Next(vowels.Length)];
 		}
-		if (Random.NextDouble() < 0.5)
+		while (name.Length < 6 && Random.NextDouble() < 0.55);
+		
+		if (Random.NextDouble() < 0.33)
 			name += consonants[Random.Next(consonants.Length)];
 		
-		if (Random.NextDouble() < 0.25)
-		{
-			var index = Random.Next(name.Length);
-			name = name.Substring(0, index) + name.Substring(index+1);
-		}
-		
-		if (Random.NextDouble() < 0.25)
+		if (name.Length < 6 && Random.NextDouble() < 0.20)
 		{
 			var index = Random.Next(name.Length);
 			name = name.Substring(0, index) + name.Substring(index, 1) + name.Substring(index);
+		}
+		
+		if (name.Length > 4 && Random.NextDouble() < 0.20)
+		{
+			var index = Random.Next(name.Length);
+			name = name.Substring(0, index) + name.Substring(index+1);
 		}
 		
 		name = name.Replace("q", "qu");
@@ -844,6 +870,8 @@ public static class Globals
 	
 	private static void MakeDeities()
 	{
+		MakeLanguage();
+		
 		var types = System.Reflection.Assembly
 			.GetExecutingAssembly()
 			.GetTypes();
@@ -907,8 +935,8 @@ public class Deity
 	
 	public float ChanceOfBlessing { get; set; } = 0.5f;
 	public float ChanceOfCurse { get; set; } = 0.5f;
-	public int StrengthOfLikes { get; set; } = 2;
-	public int StrengthOfDislikes { get; set; } = 2;
+	public int StrengthOfLikes { get; set; } = 4;
+	public int StrengthOfDislikes { get; set; } = 4;
 	public bool AcceptsPrayers { get; set; } = true;
 	public float DonationMultiplier { get; set; } = 1.0f;
 	public int SacrificeCost { get; set; } = -1;
@@ -988,12 +1016,12 @@ public class Deity
 		{ 
 			if (FavorPerTeam[turn.Player.Team] < 0)
 			{
-				if (Globals.Random.Next(100) < -FavorPerTeam[turn.Player.Team])
+				if (Globals.Random.Next(200) < -FavorPerTeam[turn.Player.Team])
 					FavorCheck(e.Level, turn.Player);
 			}
 			else
 			{
-				if (Globals.Random.Next(100) < FavorPerTeam[turn.Player.Team])
+				if (Globals.Random.Next(200) < FavorPerTeam[turn.Player.Team])
 					FavorCheck(e.Level, turn.Player);
 			}
 		}

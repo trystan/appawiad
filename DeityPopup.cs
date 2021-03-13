@@ -32,6 +32,8 @@ public class DeityPopup : ColorRect
 			
 			text.BbcodeText += "\n\n";
 		}
+		
+		text.BbcodeText += "\nThe farther your favor is from 0, the more likely that deity is to act.";
 	}
 	
 	public override void _UnhandledInput(InputEvent e)

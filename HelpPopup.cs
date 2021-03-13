@@ -15,11 +15,11 @@ public class HelpPopup : ColorRect
 			"\nKeys:",
 			"  [arrows] Move",
 			"  [.] Wait",
-			"  [c] View your character",
+			"  [@] View your character",
 			"  [g] Get item on the floor",
 			"  [tab] View Deities",
 			"  [m] View message log",
-			"  [h] View this help",
+			"  [?] View this help",
 			"",
 			"The gods are watching everyone. And judging. And helping those "
 			+ "they favor while hindering those they don't. What items will "
@@ -43,7 +43,7 @@ public class HelpPopup : ColorRect
 		if (e is InputEventKey key && key.Pressed)
 		{
 			if (key.Scancode == (int)KeyList.Escape
-				|| key.Scancode == (int)KeyList.H)
+				|| (char)key.Unicode == '?')
 			{
 				GetTree().SetInputAsHandled();
 				Hide();

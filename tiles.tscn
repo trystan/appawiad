@@ -10,49 +10,49 @@ region_enabled = true
 region_rect = Rect2( 262, 54, 24, 24 )
 
 [node name="dungeon_floor2" type="Sprite" parent="."]
-position = Vector2( 24.7836, -0.122087 )
+position = Vector2( 24, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 288, 54, 24, 24 )
 
 [node name="dungeon_floor3" type="Sprite" parent="."]
-position = Vector2( 49.323, -0.122087 )
+position = Vector2( 48, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 314, 54, 24, 24 )
 
 [node name="dungeon_wall1" type="Sprite" parent="."]
-position = Vector2( 76.7704, -0.296915 )
+position = Vector2( 72, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 80, 80, 24, 24 )
 
 [node name="dungeon_wall2" type="Sprite" parent="."]
-position = Vector2( 101.945, -0.646563 )
+position = Vector2( 96, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 106, 80, 24, 24 )
 
 [node name="dungeon_wall3" type="Sprite" parent="."]
-position = Vector2( 127.882, 0.434156 )
+position = Vector2( 120, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 132, 80, 24, 24 )
 
 [node name="Alter" type="Sprite" parent="."]
-position = Vector2( 151, 0 )
+position = Vector2( 144, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 886, 756, 24, 24 )
 
 [node name="Used alter" type="Sprite" parent="."]
-position = Vector2( 175.771, 1.05408 )
+position = Vector2( 168, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 912, 756, 24, 24 )
 
 [node name="Down" type="Sprite" parent="."]
-position = Vector2( 202.123, 0.263518 )
+position = Vector2( 192, 0 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 262, 2, 24, 24 )
