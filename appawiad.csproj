@@ -61,6 +61,7 @@
     <Compile Include="HelpPopup.cs" />
     <Compile Include="Item.cs" />
     <Compile Include="Level.cs" />
+    <Compile Include="MessagesPopup.cs" />
     <Compile Include="PaladinSetupScene.cs" />
     <Compile Include="PlayScene.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

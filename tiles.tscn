@@ -50,3 +50,9 @@ position = Vector2( 175.771, 1.05408 )
 texture = ExtResource( 1 )
 region_enabled = true
 region_rect = Rect2( 912, 756, 24, 24 )
+
+[node name="Down" type="Sprite" parent="."]
+position = Vector2( 202.123, 0.263518 )
+texture = ExtResource( 1 )
+region_enabled = true
+region_rect = Rect2( 262, 2, 24, 24 )

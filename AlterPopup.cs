@@ -100,6 +100,7 @@ public class AlterPopup : ColorRect
 			var nextFavor = favor + 25;
 			_actions[key] = () => {
 				agent.AP -= 50;
+				agent.Messages.Add($"You pray to [color={Globals.TextColorGood}]{d.Name}[/color]");
 				d.FavorPerTeam[agent.Team] = nextFavor;
 				level.SetTile(alterX, alterY, Tile.ExhaustedAlter);
 				if (nextFavor > 0)
@@ -119,6 +120,7 @@ public class AlterPopup : ColorRect
 			var nextFavor = (int)(favor + agent.Money * d.DonationMultiplier);
 			_actions[key] = () => {
 				agent.Money = 0;
+				agent.Messages.Add($"You donate {agent.Money} HP to [color={Globals.TextColorGood}]{d.Name}[/color]");
 				d.FavorPerTeam[agent.Team] = nextFavor;
 				level.SetTile(alterX, alterY, Tile.ExhaustedAlter);
 				if (nextFavor > 0)
@@ -137,6 +139,7 @@ public class AlterPopup : ColorRect
 			var favor = d.FavorPerTeam[agent.Team];
 			var nextFavor = favor + 10;
 			_actions[key] = () => {
+				agent.Messages.Add($"You sacrifice {d.SacrificeCost} HP to [color={Globals.TextColorGood}]{d.Name}[/color]");
 				agent.TakeDamage(d.SacrificeCost);
 				d.FavorPerTeam[agent.Team] = nextFavor;
 				level.SetTile(alterX, alterY, Tile.ExhaustedAlter);

@@ -10,6 +10,7 @@ public class PlayScene : Node2D
 	CharacterPopup _characterPopup;
 	HelpPopup _helpPopup;
 	AlterPopup _alterPopup;
+	MessagesPopup _messagePopup;
 	Camera2D _camera;
 	
 	Level _level;
@@ -23,6 +24,7 @@ public class PlayScene : Node2D
 		_characterPopup = (CharacterPopup)GetNode("CanvasLayer/CharacterPopup");
 		_helpPopup = (HelpPopup)GetNode("CanvasLayer/HelpPopup");
 		_alterPopup = (AlterPopup)GetNode("CanvasLayer/AlterPopup");
+		_messagePopup = (MessagesPopup)GetNode("CanvasLayer/MessagesPopup");
 		
 		_camera = (Camera2D)GetNode("Camera2D");
 		
@@ -32,25 +34,19 @@ public class PlayScene : Node2D
 		
 		Globals.OnEventCallbacks.Add(OnEvent);
 		
-		for (var i = 0; i < 16; i++)
-		{
-			var x = -1;
-			var y = -1;
-			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None)
-			{
-				x = Globals.Random.Next(32);
-				y = Globals.Random.Next(32);
-			}
-			_level.Add(catalog.NewItem(x, y));
-		}
-		
 		_player = Globals.Player ?? catalog.NewPlayer(3, 4);
 		_player.Messages.Add("Welcome!");
+		
 		_level.Add(_player);
 		RemoveChild(_camera);
 		_player.AddChild(_camera);
 		
-		for (var i = 0; i < 32; i++)
+		PopulateLevel();
+	}
+	
+	private void PopulateLevel()
+	{
+		for (var i = 0; i < 8; i++)
 		{
 			var x = -1;
 			var y = -1;
@@ -59,7 +55,19 @@ public class PlayScene : Node2D
 				x = Globals.Random.Next(32);
 				y = Globals.Random.Next(32);
 			}
-			_level.Add(catalog.NewEnemy(x, y));
+			_level.Add(_level.Catalog.NewItem(x, y));
+		}
+		
+		for (var i = 0; i < 28 + _level.Depth * 4; i++)
+		{
+			var x = -1;
+			var y = -1;
+			while (_level.GetTile(x, y).BumpEffect != TileBumpEffect.None)
+			{
+				x = Globals.Random.Next(32);
+				y = Globals.Random.Next(32);
+			}
+			_level.Add(_level.Catalog.NewEnemy(x, y));
 		}
 	}
 	
@@ -69,8 +77,19 @@ public class PlayScene : Node2D
 		{
 			if (alter.Agent == _player)
 				_alterPopup.Show(alter.Level, alter.Agent);
-			// else
-				// TODO
+		}
+		else if (e is WentDownStairs down)
+		{
+			if (down.Agent == _player)
+			{
+				_player.RemoveChild(_camera);
+				_level.Remove(_player, false);
+				_level.Setup(32, 32);
+				_level.Add(_player);
+				_player.AddChild(_camera);
+				_camera.Current = true;
+				PopulateLevel();
+			}
 		}
 	}
 	
@@ -114,16 +133,24 @@ public class PlayScene : Node2D
 		{
 			if (key is MoveBy moveBy)
 			{
-				var other = _level.GetAgent(agent.X + moveBy.X, agent.Y + moveBy.Y);
-				if (other == null || other == agent)
-					continue;
-				if (other == _player)
-					commands[key] += 5;
-				else if (other.Team == agent.Team)
-					commands[key] -= 3;
-				else
-					commands[key] -= 1;
+				for (var i = 0; i < 5; i++)
+				{
+					var x2 = agent.X + moveBy.X * i;
+					var y2 = agent.Y + moveBy.Y * i;
+					if (_level.GetTile(x2, y2).BlocksMovement)
+						break;
+					var other = _level.GetAgent(x2, y2);
+					if (other == null || other == agent)
+						;
+					else if (other == _player)
+						commands[key] += 10 + i;
+					else if (other.Team == agent.Team)
+						commands[key] -= 3;
+					else
+						commands[key] -= 1;
+				}
 			}
+			commands[key] = Math.Max(1, commands[key]);
 		}
 		
 		var shuffled = new List<KeyValuePair<ICommand,int>>();
@@ -143,7 +170,8 @@ public class PlayScene : Node2D
 				|| _deityPopup.Visible
 				|| _characterPopup.Visible
 				|| _helpPopup.Visible
-				|| _alterPopup.Visible)
+				|| _alterPopup.Visible
+				|| _messagePopup.Visible)
 			return;
 		
 		if (e is InputEventKey key && key.Pressed)
@@ -164,6 +192,11 @@ public class PlayScene : Node2D
 				
 				case (int)KeyList.H:
 					_helpPopup.Show();
+					GetTree().SetInputAsHandled();
+					break;
+				
+				case (int)KeyList.M:
+					_messagePopup.Show(_level, _player);
 					GetTree().SetInputAsHandled();
 					break;
 					
@@ -201,8 +234,7 @@ public class PlayScene : Node2D
 	{
 		var lines = new List<string> {
 			$"[c] {_player.DisplayName}",
-			$"HP {_player.HP}/{_player.HPMax}   AP {_player.AP} (+{_player.APRegeneration})",
-			$"${_player.Money}",
+			$"HP {_player.HP}/{_player.HPMax}   AP {_player.AP} (+{_player.APRegeneration})   ${_player.Money}",
 			"Armor: " + (_player.Armor?.DisplayName ?? "-none-"),
 			"Weapon: " + (_player.Weapon?.DisplayName ?? "-none-"),
 			$"ATK: {_player.ATK}",
@@ -217,9 +249,9 @@ public class PlayScene : Node2D
 				if (effect.Name == null)
 					continue;
 				
-				lines.Add(effect.Name);
+				lines.Add(" " + effect.Name);
 				foreach (var description in effect.Descriptions)
-					lines.Add(" " + description);
+					lines.Add("   " + description);
 			}
 		}
 		else
@@ -262,7 +294,7 @@ public class PlayScene : Node2D
 		{
 			if (_level.Agents[0].AP < 1)
 			{
-				_level.Agents.ForEach(a => a.EndTurn());
+				_level.Agents.ToList().ForEach(a => a.EndTurn());
 				_level.Agents = _level.Agents.OrderByDescending(a => a.AP).ToList();
 				Globals.OnEvent(new NextTurn { Level = _level, Player = _player });
 			}
@@ -331,10 +363,10 @@ public class Catalog
 	public Agent NewPlayer(int x, int y)
 	{
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 0, 9);
-		agent.HP = 20;
-		agent.HPMax = 20;
-		agent.ATK = 3;
-		agent.DEF = 3;
+		agent.HP = 10;
+		agent.HPMax = 10;
+		agent.ATK = 2;
+		agent.DEF = 2;
 		agent.DisplayName = "player";
 		agent.Team = "player";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -352,8 +384,8 @@ public class Catalog
 	public Agent NewDemon(int x, int y)
 	{ 
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 25, 2);
-		agent.HP = 20;
-		agent.HPMax = 20;
+		agent.HP = 12;
+		agent.HPMax = 12;
 		agent.ATK = 5;
 		agent.DEF = 5;
 		agent.DisplayName = "demon";
@@ -367,8 +399,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 31, 5);
 		agent.HP = 6;
 		agent.HPMax = 6;
-		agent.ATK = 2;
-		agent.DEF = 2;
+		agent.ATK = 4;
+		agent.DEF = 4;
 		agent.DisplayName = "goblin";
 		agent.Team = "gobbos";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -380,8 +412,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 37, 5);
 		agent.HP = 3;
 		agent.HPMax = 3;
-		agent.ATK = 2;
-		agent.DEF = 2;
+		agent.ATK = 3;
+		agent.DEF = 3;
 		agent.DisplayName = "skeleton";
 		agent.Team = "skeleton";
 		agent.Tags = new List<AgentTag> { AgentTag.Undead };
@@ -393,8 +425,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 15);
 		agent.HP = 8;
 		agent.HPMax = 8;
-		agent.ATK = 1;
-		agent.DEF = 1;
+		agent.ATK = 2;
+		agent.DEF = 2;
 		agent.DisplayName = "pig";
 		agent.Team = "beasts";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -406,8 +438,8 @@ public class Catalog
 		var agent = ((Agent)_agentScene.Instance()).Setup(x, y, 2, 14);
 		agent.HP = 2;
 		agent.HPMax = 2;
-		agent.ATK = 2;
-		agent.DEF = 2;
+		agent.ATK = 1;
+		agent.DEF = 1;
 		agent.DisplayName = "spider";
 		agent.Team = "critters";
 		agent.Tags = new List<AgentTag> { AgentTag.Living };
@@ -568,6 +600,11 @@ public class MoveBy : ICommand
 		if (tile.BumpEffect == TileBumpEffect.Alter)
 		{
 			Globals.OnEvent(new EnteredAlter(level, agent));
+			return;
+		}
+		else if (tile.BumpEffect == TileBumpEffect.Down)
+		{
+			Globals.OnEvent(new WentDownStairs(level, agent));
 			return;
 		}
 		else if (tile.BlocksMovement)
@@ -862,7 +899,7 @@ public class Deity
 	
 	public string GetFullTitle()
 	{
-		var title = Pronoun == "he" ? "god" : "godess";
+		var title = Pronoun == "he" ? "god" : "goddess";
 		if (Domains.Count == 0)
 			return Name + " the " + Archetype.Name + " " + title;
 		else
@@ -871,7 +908,7 @@ public class Deity
 	
 	public string GetShortTitle()
 	{
-		var title = Pronoun == "he" ? "god" : "godess";
+		var title = Pronoun == "he" ? "god" : "goddess";
 		return Name + " the " + Archetype.Name + " " + title;
 	}
 	
@@ -1188,7 +1225,7 @@ public abstract class DeityDomain
 
 public enum TileBumpEffect
 {
-	None, Block, Alter
+	None, Block, Alter, Down
 }
 
 public class Tile
@@ -1197,6 +1234,7 @@ public class Tile
 	public static Tile Wall = new Tile { BumpEffect = TileBumpEffect.Block, Indices = new []{ 3, 4, 5 } };
 	public static Tile Alter = new Tile { BumpEffect = TileBumpEffect.Alter, Indices = new [] { 6 } };
 	public static Tile ExhaustedAlter = new Tile { BumpEffect = TileBumpEffect.Block, Indices = new [] { 7 } };
+	public static Tile DownStairs = new Tile { BumpEffect = TileBumpEffect.Down, Indices = new [] { 8 } };
 	
 	public int[] Indices { get; set; }
 	public TileBumpEffect BumpEffect { get; set; }
@@ -1263,6 +1301,18 @@ public class EnteredAlter : IEvent
 	public Agent Agent { get; set; }
 	
 	public EnteredAlter(Level level, Agent agent)
+	{
+		Level = level;
+		Agent = agent;
+	}
+}
+
+public class WentDownStairs : IEvent
+{
+	public Level Level { get; set; }
+	public Agent Agent { get; set; }
+	
+	public WentDownStairs(Level level, Agent agent)
 	{
 		Level = level;
 		Agent = agent;

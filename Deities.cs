@@ -139,7 +139,7 @@ public class Sleeping : DeityArchetype
 		self.AcceptsPrayers = false;
 		self.DonationMultiplier = -1;
 		self.SacrificeCost = -100;
-		Description = $"{self.Name} slumbers forever and rarely intervines in the mundane world.";
+		Description = $"{self.Name} slumbers forever and rarely intervenes in the mundane world.";
 	}
 }
 

@@ -31,7 +31,7 @@ public class Agent : Sprite
 				var tween = new Tween();
 				GetParent().AddChild(tween);
 				tween.InterpolateProperty(camera, "zoom",
-					camera.Zoom, new Vector2(2f, 2f), 30,
+					camera.Zoom, new Vector2(1.25f, 1.25f), 30,
 					Tween.TransitionType.Quad, Tween.EaseType.InOut);
 				tween.Start();
 			}

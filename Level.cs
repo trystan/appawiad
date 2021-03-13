@@ -11,6 +11,7 @@ public class Level : Node2D
 	public Tile[,] Tiles { get; private set; }
 	public List<Agent> Agents { get; set; } = new List<Agent>();
 	public List<Item> Items { get; set; } = new List<Item>();
+	public int Depth { get; set; }
 	
 	public override void _Ready()
 	{
@@ -35,14 +36,29 @@ public class Level : Node2D
 	
 	public void Setup(Catalog catalog, int w, int h)
 	{
+		Depth = 0;
 		Catalog = catalog;
+		Setup(w, h);
+	}
+	
+	public void Setup(int w, int h)
+	{
+		foreach (var item in Items)
+			item.QueueFree();
+		foreach (var item in Items.ToArray())
+			Remove(item);
+		foreach (var agent in Agents.ToArray())
+			Remove(agent);
+		Depth++;
+		
 		Tiles = new Tile[w,h];
 		
+		var solidPercent = 0.25 - Depth * 0.01;
 		for (var x = 0; x < Tiles.GetLength(0); x++)
 		{
 			for (var y = 0; y < Tiles.GetLength(1); y++)
 			{
-				Tiles[x,y] = Globals.Random.NextDouble() < 0.25 ? Tile.Wall : Tile.Floor;
+				Tiles[x,y] = Globals.Random.NextDouble() < solidPercent ? Tile.Wall : Tile.Floor;
 			}
 		}
 		
@@ -54,6 +70,15 @@ public class Level : Node2D
 			alterY = Globals.Random.Next(h);
 		}
 		Tiles[alterX, alterY] = Tile.Alter;
+		
+		var downX = -1;
+		var downY = -1;
+		while (GetTile(downX, downY).BumpEffect != TileBumpEffect.None)
+		{
+			downX = Globals.Random.Next(w);
+			downY = Globals.Random.Next(h);
+		}
+		Tiles[downX, downY] = Tile.DownStairs;
 		
 		for (var x = 0; x < Tiles.GetLength(0); x++)
 		{
@@ -101,10 +126,19 @@ public class Level : Node2D
 		AddChild(agent);
 	}
 	
-	public void Remove(Agent agent)
+	public void Remove(Agent agent, bool queueFree = true)
 	{
 		Agents.Remove(agent);
-		RemoveChild(agent);
-		agent.QueueFree();
+		
+		try
+		{
+			RemoveChild(agent);
+		}
+		catch (System.ObjectDisposedException)
+		{
+		}
+		
+		if (queueFree)
+			agent.QueueFree();
 	}
 }

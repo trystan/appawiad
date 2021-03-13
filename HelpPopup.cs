@@ -26,6 +26,10 @@ public class HelpPopup : ColorRect
 			+ "you use? Who will you fight? Who will you pray to, donate to "
 			+ "and sacrafice to?",
 			"",
+			"In combat, damage is done based on ATK / DEF.",
+			"ATK:8 vs DEF:4 = 8/4 = 2 points of damage",
+			"ATK:9 vs DEF:4 = 9/4 = 2 and 1/4 left over. So 2 points of damage and a 1/4 chance of an additional point",
+			"ATK:2 vs DEF:8 = 2/8 = 0 and 1/4 left over. So 0 points of damage and a 1/4 chance of an additional point",
 		};
 		
 		_text.BbcodeText = string.Join("\n", lines);
